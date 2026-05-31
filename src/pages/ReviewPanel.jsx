@@ -1,12 +1,16 @@
-import { Save } from 'lucide-react'
+import { Download, Save, Trash2, Upload } from 'lucide-react'
+import { useRef } from 'react'
 import Badge from '../components/Badge'
+import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import { defaultReviewRecord, DISCIPLINE_OPTIONS } from '../utils/defaults'
 import { formatDateLabel, sortByDateDesc } from '../utils/date'
 import { isReviewComplete } from '../utils/scoring'
+import { clearProjectStorage, createProjectBackupPayload, restoreProjectBackupPayload } from '../utils/storage'
 
 export default function ReviewPanel({ selectedDate, reviewRecords, setReviewRecords }) {
+  const importInputRef = useRef(null)
   const record = { ...defaultReviewRecord, date: selectedDate, ...(reviewRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(reviewRecords)).slice(0, 10)
   const complete = isReviewComplete(record)
@@ -21,6 +25,65 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
         [field]: value,
       },
     }))
+  }
+
+  function exportData() {
+    const payload = createProjectBackupPayload()
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = `amu-battle-station-backup-${selectedDate}.json`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function requestImport() {
+    importInputRef.current?.click()
+  }
+
+  function importData(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) return
+
+    const confirmed = window.confirm('导入会覆盖当前浏览器里的本地数据，是否继续？')
+    if (!confirmed) return
+
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      try {
+        const payload = JSON.parse(String(reader.result || '{}'))
+        restoreProjectBackupPayload(payload)
+        window.alert('数据已导入，页面将刷新。')
+        window.location.reload()
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : '导入失败，请确认文件是有效的 JSON 备份。')
+      }
+    }
+
+    reader.onerror = () => {
+      window.alert('读取备份文件失败，请重新选择文件。')
+    }
+
+    reader.readAsText(file)
+  }
+
+  function clearData() {
+    const firstConfirm = window.confirm('清空本地数据会删除当前浏览器里的阿木作战台数据，是否继续？')
+    if (!firstConfirm) return
+
+    const secondConfirm = window.confirm('请再次确认：这会清空本地数据，建议先导出备份。确定清空吗？')
+    if (!secondConfirm) return
+
+    clearProjectStorage()
+    window.alert('本地数据已清空，页面将刷新。')
+    window.location.reload()
   }
 
   return (
@@ -135,6 +198,27 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
           ) : (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">还没有历史复盘，今晚先写第一条。</div>
           )}
+        </div>
+      </Card>
+
+      <Card title="数据备份" eyebrow="Backup">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <div className="text-sm leading-6 text-slate-600">
+            <p>导出或恢复当前浏览器里的阿木作战台本地数据。</p>
+            <p>导入和清空都会影响当前浏览器的 localStorage，操作前建议先导出备份。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" icon={Download} onClick={exportData}>
+              导出数据
+            </Button>
+            <Button type="button" icon={Upload} onClick={requestImport}>
+              导入数据
+            </Button>
+            <Button type="button" variant="danger" icon={Trash2} onClick={clearData}>
+              清空本地数据
+            </Button>
+            <input ref={importInputRef} type="file" accept="application/json,.json" onChange={importData} className="hidden" />
+          </div>
         </div>
       </Card>
     </div>

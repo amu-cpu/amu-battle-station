@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+export const STORAGE_PREFIX = 'amu-battle-station:'
+
 export const STORAGE_KEYS = {
   tasksByDate: 'amu-battle-station:tasks-by-date',
   opsByDate: 'amu-battle-station:ops-by-date',
@@ -38,6 +40,65 @@ export function readStorage(key, fallback) {
 
 export function writeStorage(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function readProjectKeys() {
+  const keys = []
+
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (key?.startsWith(STORAGE_PREFIX)) {
+      keys.push(key)
+    }
+  }
+
+  return keys.sort()
+}
+
+function parseBackupValue(raw) {
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return raw
+  }
+}
+
+export function createProjectBackupPayload() {
+  const data = {}
+
+  readProjectKeys().forEach((key) => {
+    data[key] = parseBackupValue(window.localStorage.getItem(key))
+  })
+
+  return {
+    app: 'amu-battle-station',
+    exportedAt: new Date().toISOString(),
+    data,
+  }
+}
+
+export function restoreProjectBackupPayload(payload) {
+  const data = payload?.data
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('备份文件格式不正确。')
+  }
+
+  const entries = Object.entries(data).filter(([key]) => key.startsWith(STORAGE_PREFIX))
+
+  readProjectKeys().forEach((key) => {
+    window.localStorage.removeItem(key)
+  })
+
+  entries.forEach(([key, value]) => {
+    window.localStorage.setItem(key, JSON.stringify(value))
+  })
+}
+
+export function clearProjectStorage() {
+  readProjectKeys().forEach((key) => {
+    window.localStorage.removeItem(key)
+  })
 }
 
 export function migrateTasksByDate() {
