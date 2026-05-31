@@ -35,6 +35,77 @@ http://localhost:5173/
 
 第一版所有数据保存在当前浏览器的 localStorage 中。刷新页面不会丢失，但电脑和手机默认不会自动同步；换浏览器、清理浏览器数据或更换设备后，需要重新记录。
 
+## Vercel 在线部署说明
+
+本项目是 React + Vite 项目，推荐用 Vercel 直接导入 GitHub 仓库部署。
+
+1. 打开 Vercel，选择导入 GitHub 仓库。
+2. 选择 `amu-battle-station` 仓库。
+3. Framework Preset 选择 `Vite`。
+4. Build Command 通常使用 `npm run build`。
+5. Output Directory 通常使用 `dist`。
+6. 完成首次部署后，每次 `git push` 到 `main`，Vercel 会自动重新部署。
+
+注意：线上地址和本地地址的 localStorage 不互通。线上版本建议先用测试数据，不要直接填写过多隐私内容。如果要给别人看，只发 Vercel 生成的 `.vercel.app` 链接，不要发 GitHub 仓库链接，也不要发 localhost 链接。
+
+## 备用部署说明
+
+### 为什么需要备用部署
+
+当前 Vercel 版本电脑端可以打开，但手机端访问 `vercel.app` 域名报 `ERR_CONNECTION_ABORTED`。
+这更像是手机网络、DNS、运营商链路或 `vercel.app` 子域名访问问题。
+所以保留 Vercel，同时准备 Cloudflare Pages 和 Netlify 作为备用线上地址。
+
+### Cloudflare Pages 部署
+
+1. 登录 Cloudflare。
+2. 进入 Workers & Pages。
+3. 选择 Pages。
+4. 连接 GitHub。
+5. 选择仓库：`amu-battle-station`。
+6. Framework preset 选择：`Vite`。
+7. Build command 填：`npm run build`。
+8. Output directory 填：`dist`。
+9. 点击 Deploy。
+10. 部署成功后，会得到一个 `pages.dev` 地址。
+11. 用手机打开 `pages.dev` 地址测试。
+
+### Netlify 部署
+
+1. 登录 Netlify。
+2. Add new site。
+3. Import an existing project。
+4. 连接 GitHub。
+5. 选择仓库：`amu-battle-station`。
+6. Framework 选择：`Vite` 或自动识别。
+7. Build command 填：`npm run build`。
+8. Publish directory 填：`dist`。
+9. 点击 Deploy。
+10. 部署成功后，会得到一个 `netlify.app` 地址。
+11. 用手机打开 `netlify.app` 地址测试。
+
+### 重要提醒
+
+1. Vercel、Cloudflare Pages、Netlify、本地 localhost 是不同访问来源。
+2. 当前 App 使用 localStorage 保存数据。
+3. 不同域名下的 localStorage 数据互不相通。
+4. 本地数据不会自动同步到 Vercel。
+5. Vercel 数据不会自动同步到 Cloudflare Pages。
+6. Cloudflare Pages 数据不会自动同步到 Netlify。
+7. 线上演示时先用测试数据，不要填真实隐私复盘、资金、戒色等内容。
+8. 后续如果要同步数据，需要再设计导出导入 JSON 或真正的后端数据库。
+
+## 手机打不开线上地址时怎么排查
+
+1. 先确认电脑是否能打开。
+2. 手机分别测试 WiFi 和蜂窝流量。
+3. 手机关闭代理再试。
+4. 手机开启全局代理再试。
+5. 手机浏览器直接打开 `vercel.com`、`pages.dev`、`netlify.app`。
+6. 如果 Vercel 打不开但 Cloudflare Pages 能打开，就优先使用 Cloudflare Pages 地址。
+7. 如果所有海外托管地址都打不开，就考虑代理、DNS 或以后绑定自定义域名。
+8. 不要因为手机打不开就立刻改业务代码。
+
 ## 第一版范围
 
 - 今日作战台：每日任务、作战分、风险提醒。
