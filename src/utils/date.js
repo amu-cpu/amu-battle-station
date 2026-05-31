@@ -15,6 +15,18 @@ export function formatDateLabel(dateKey) {
   return `${year}年${month}月${day}日 ${weekday}`
 }
 
+export function shiftDateKey(dateKey, dayOffset) {
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  date.setDate(date.getDate() + dayOffset)
+
+  const nextYear = date.getFullYear()
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0')
+  const nextDay = String(date.getDate()).padStart(2, '0')
+
+  return `${nextYear}-${nextMonth}-${nextDay}`
+}
+
 export function sortByDateDesc(items) {
   return [...items].sort((a, b) => String(b.date).localeCompare(String(a.date)))
 }

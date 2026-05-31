@@ -7,6 +7,10 @@ export function clampScore(score) {
   return Math.max(0, Math.min(100, Math.round(score)))
 }
 
+function isFilled(value) {
+  return String(value ?? '').trim() !== ''
+}
+
 export function calculateTaskScore(tasks) {
   if (!tasks.length) return 0
   const doneCount = tasks.filter((task) => task.done).length
@@ -14,9 +18,9 @@ export function calculateTaskScore(tasks) {
 }
 
 export function calculateOperationSummary(records, dateKey) {
-  const todayRecords = records.filter((record) => record.date === dateKey)
+  const selectedRecords = dateKey ? records.filter((record) => record.date === dateKey) : records
 
-  return todayRecords.reduce(
+  return selectedRecords.reduce(
     (summary, record) => ({
       publishCount: summary.publishCount + toNumber(record.publishCount),
       exposure: summary.exposure + toNumber(record.exposure),
@@ -86,8 +90,44 @@ export function calculateBodyScore(record) {
   return clampScore(score)
 }
 
+export function hasBodyDiet(record) {
+  return Boolean(record && (isFilled(record.lunch) || isFilled(record.dinner) || isFilled(record.snack)))
+}
+
+export function hasBodyRecord(record) {
+  if (!record) return false
+
+  return Boolean(
+    isFilled(record.weight) ||
+      isFilled(record.bedTime) ||
+      isFilled(record.wakeTime) ||
+      isFilled(record.sleepHours) ||
+      hasBodyDiet(record) ||
+      (record.exercise && record.exercise !== '未记录') ||
+      isFilled(record.note),
+  )
+}
+
 export function calculateBattleScore({ taskScore, bodyScore, operationScore }) {
   return clampScore(taskScore * 0.45 + bodyScore * 0.3 + operationScore * 0.25)
+}
+
+export function hasReviewCore(record) {
+  if (!record) return false
+
+  return Boolean(
+    isFilled(record.valuableThing) ||
+      isFilled(record.stupidThing) ||
+      isFilled(record.unfinishedReason) ||
+      isFilled(record.tomorrowTop3) ||
+      isFilled(record.biggestRisk),
+  )
+}
+
+export function hasReviewRecord(record) {
+  if (!record) return false
+
+  return Boolean(hasReviewCore(record) || (record.discipline && record.discipline !== '未记录'))
 }
 
 export function isReviewComplete(record) {
@@ -99,6 +139,53 @@ export function isReviewComplete(record) {
       record.discipline &&
       record.discipline !== '未记录',
   )
+}
+
+export function applyTaskAutomation(tasks, { operationSummary, bodyRecord, reviewRecord }) {
+  return tasks.map((task) => {
+    let autoManaged = true
+    let autoDone = false
+
+    switch (task.title) {
+      case '记录今日运营数据':
+        autoDone = operationSummary.recordCount > 0
+        break
+      case '两店铺各发布 1 条商品':
+        autoDone = operationSummary.publishCount >= 2
+        break
+      case '养号 10 分钟':
+        autoDone = operationSummary.warmedCount > 0
+        break
+      case '记录体重':
+        autoDone = isFilled(bodyRecord?.weight)
+        break
+      case '记录睡眠':
+        autoDone = isFilled(bodyRecord?.sleepHours)
+        break
+      case '完成俯卧撑、步行、跑步机或羽毛球中的任意一种':
+        autoDone = Boolean(bodyRecord?.exercise && bodyRecord.exercise !== '未记录')
+        break
+      case '记录今天饮食':
+        autoDone = hasBodyDiet(bodyRecord)
+        break
+      case '填写每日复盘':
+        autoDone = hasReviewCore(reviewRecord)
+        break
+      case '记录是否破戒、摆烂、熬夜或拖延':
+        autoDone = Boolean(reviewRecord?.discipline && reviewRecord.discipline !== '未记录')
+        break
+      default:
+        autoManaged = false
+        break
+    }
+
+    return {
+      ...task,
+      autoManaged,
+      autoDone,
+      done: autoManaged ? autoDone : Boolean(task.done),
+    }
+  })
 }
 
 export function calculateFinanceTotal(assets) {
@@ -127,6 +214,19 @@ export function getFinanceAlerts(assets) {
   return assets
     .map((asset) => ({ asset, ...getAssetStatus(asset, total) }))
     .filter((item) => item.status === '偏高')
+}
+
+export function getFinanceStatusSummary(assets) {
+  const total = calculateFinanceTotal(assets)
+  const rows = assets.map((asset) => ({ ...asset, ...getAssetStatus(asset, total) }))
+
+  return {
+    total,
+    rows,
+    highCount: rows.filter((row) => row.status === '偏高').length,
+    lowCount: rows.filter((row) => row.status === '偏低').length,
+    normalCount: rows.filter((row) => row.status === '正常').length,
+  }
 }
 
 export function formatCurrency(value) {

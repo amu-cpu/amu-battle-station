@@ -4,28 +4,28 @@ import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
 import { defaultBodyRecord, EXERCISE_OPTIONS } from '../utils/defaults'
-import { calculateSleepHours, sortByDateDesc } from '../utils/date'
+import { calculateSleepHours, formatDateLabel, sortByDateDesc } from '../utils/date'
 
-export default function BodyPanel({ today, bodyRecords, setBodyRecords, bodyScore }) {
-  const record = { ...defaultBodyRecord, date: today, ...(bodyRecords[today] || {}) }
+export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, bodyScore }) {
+  const record = { ...defaultBodyRecord, date: selectedDate, ...(bodyRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(bodyRecords)).slice(0, 10)
 
   function saveField(field, value) {
     setBodyRecords((current) => {
-      const nextRecord = { ...defaultBodyRecord, date: today, ...(current[today] || {}), [field]: value }
+      const nextRecord = { ...defaultBodyRecord, date: selectedDate, ...(current[selectedDate] || {}), [field]: value }
 
       if (field === 'bedTime' || field === 'wakeTime') {
         nextRecord.sleepHours = calculateSleepHours(nextRecord.bedTime, nextRecord.wakeTime)
       }
 
-      return { ...current, [today]: nextRecord }
+      return { ...current, [selectedDate]: nextRecord }
     })
   }
 
   return (
     <div className="space-y-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-500">身体打卡台</p>
+        <p className="text-sm font-semibold text-slate-500">身体打卡台 · {formatDateLabel(selectedDate)}</p>
         <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">身体是本金，别熬夜硬扛</h1>
         <p className="mt-2 text-sm text-slate-600">记录睡眠、饮食、运动和备注，防止硬扛到报废。</p>
       </header>

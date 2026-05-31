@@ -6,6 +6,7 @@ import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
 import { DEFAULT_SHOPS } from '../utils/defaults'
+import { formatDateLabel } from '../utils/date'
 import { formatCurrency } from '../utils/scoring'
 
 const emptyForm = {
@@ -24,17 +25,21 @@ const emptyForm = {
 const numberFields = ['publishCount', 'exposure', 'inquiries', 'wechat', 'deals', 'income']
 
 export default function XianyuPanel({
-  today,
+  selectedDate,
   records,
+  allRecords = [],
   setRecords,
   summary,
   operationScore,
   diagnosis,
 }) {
   const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ ...emptyForm, date: today })
-  const todayRecords = records.filter((record) => record.date === today)
-  const shopOptions = useMemo(() => [...new Set([...DEFAULT_SHOPS, ...records.map((record) => record.shopName).filter(Boolean)])], [records])
+  const [form, setForm] = useState({ ...emptyForm, date: selectedDate })
+  const todayRecords = records
+  const shopOptions = useMemo(
+    () => [...new Set([...DEFAULT_SHOPS, ...allRecords.map((record) => record.shopName).filter(Boolean)])],
+    [allRecords],
+  )
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -45,7 +50,7 @@ export default function XianyuPanel({
 
   function resetForm() {
     setEditingId(null)
-    setForm({ ...emptyForm, date: today })
+    setForm({ ...emptyForm, date: selectedDate })
   }
 
   function saveRecord(event) {
@@ -53,7 +58,7 @@ export default function XianyuPanel({
     const payload = {
       ...form,
       shopName: form.shopName.trim() || '未命名店铺',
-      date: form.date || today,
+      date: selectedDate,
     }
 
     if (editingId) {
@@ -77,7 +82,7 @@ export default function XianyuPanel({
   return (
     <div className="space-y-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-500">闲鱼运营台</p>
+        <p className="text-sm font-semibold text-slate-500">闲鱼运营台 · {formatDateLabel(selectedDate)}</p>
         <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">现金流动作不能断</h1>
         <p className="mt-2 text-sm text-slate-600">发布、曝光、咨询、加微、成交，今天有没有往前推，一眼看清。</p>
       </header>
@@ -99,7 +104,7 @@ export default function XianyuPanel({
 
       <Card title={editingId ? '编辑运营记录' : '新增运营记录'} eyebrow="Record">
         <form onSubmit={saveRecord} className="grid gap-3 lg:grid-cols-4">
-          <Input label="日期" type="date" value={form.date} onChange={(event) => updateField('date', event.target.value)} />
+          <Input label="日期" type="date" value={selectedDate} disabled />
           <label className="block">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">店铺名称</span>
             <input

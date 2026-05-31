@@ -3,21 +3,21 @@ import Badge from '../components/Badge'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import { defaultReviewRecord, DISCIPLINE_OPTIONS } from '../utils/defaults'
-import { sortByDateDesc } from '../utils/date'
+import { formatDateLabel, sortByDateDesc } from '../utils/date'
 import { isReviewComplete } from '../utils/scoring'
 
-export default function ReviewPanel({ today, reviewRecords, setReviewRecords }) {
-  const record = { ...defaultReviewRecord, date: today, ...(reviewRecords[today] || {}) }
+export default function ReviewPanel({ selectedDate, reviewRecords, setReviewRecords }) {
+  const record = { ...defaultReviewRecord, date: selectedDate, ...(reviewRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(reviewRecords)).slice(0, 10)
   const complete = isReviewComplete(record)
 
   function saveField(field, value) {
     setReviewRecords((current) => ({
       ...current,
-      [today]: {
+      [selectedDate]: {
         ...defaultReviewRecord,
-        date: today,
-        ...(current[today] || {}),
+        date: selectedDate,
+        ...(current[selectedDate] || {}),
         [field]: value,
       },
     }))
@@ -26,7 +26,7 @@ export default function ReviewPanel({ today, reviewRecords, setReviewRecords }) 
   return (
     <div className="space-y-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-500">每日复盘台</p>
+        <p className="text-sm font-semibold text-slate-500">每日复盘台 · {formatDateLabel(selectedDate)}</p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">复盘不写废话</h1>
