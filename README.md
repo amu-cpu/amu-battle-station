@@ -33,7 +33,98 @@ http://localhost:5173/
 
 ## 数据保存说明
 
-第一版所有数据保存在当前浏览器的 localStorage 中。刷新页面不会丢失，但电脑和手机默认不会自动同步；换浏览器、清理浏览器数据或更换设备后，需要重新记录。
+当前 App 支持两种存储模式：
+
+1. 未登录时：数据保存在当前浏览器的 localStorage 中，不跨设备同步。
+2. 登录后：使用 Supabase 云端同步，同一个邮箱账号登录后，电脑和手机会同步同一份数据。
+
+localStorage 仍然会保留，作为离线缓存和降级方案。同步失败时，本地数据仍会先保存到浏览器里。
+
+JSON 导出 / 导入仍然保留：云同步用于多设备一致，JSON 备份用于灾难恢复。重要数据建议定期在“每日复盘台”底部导出备份。
+
+## Supabase 云端同步说明
+
+### 存储结构
+
+云端同步使用 Supabase Auth 邮箱 Magic Link 登录，并用一张 `app_states` 表保存整份 App 状态。
+
+App State 格式：
+
+```json
+{
+  "schemaVersion": 1,
+  "updatedAt": "ISO 时间",
+  "tasks": {},
+  "xianyuRecords": {},
+  "bodyRecords": {},
+  "financeAssets": [],
+  "reviewRecords": {},
+  "settings": {}
+}
+```
+
+### Supabase 配置步骤
+
+1. 创建 Supabase 项目。
+2. 打开 Supabase SQL Editor。
+3. 执行下面 SQL。
+4. 在 Supabase Project Settings 里复制 Project URL 和 anon public key。
+5. 在 Cloudflare Pages 里配置环境变量。
+6. 在 Supabase Auth 的 URL 配置里，把 Cloudflare Pages 线上地址加入允许跳转地址。
+
+```sql
+create table if not exists public.app_states (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  unique(user_id)
+);
+
+alter table public.app_states enable row level security;
+
+create policy "Users can select own app state"
+on public.app_states
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own app state"
+on public.app_states
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own app state"
+on public.app_states
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+```
+
+### Cloudflare Pages 环境变量
+
+进入 Cloudflare Pages 项目：
+
+```text
+Pages 项目 -> Settings -> Environment variables
+```
+
+添加：
+
+```text
+VITE_SUPABASE_URL=你的 Supabase Project URL
+VITE_SUPABASE_ANON_KEY=你的 Supabase anon public key
+```
+
+本项目只需要这两个变量。不要在前端使用或提交 Supabase `service_role` key。
+
+### 安全说明
+
+1. 必须开启 Row Level Security。
+2. 只使用 Supabase anon key。
+3. 不要把 `service_role` key 写进前端代码、`.env` 或 Cloudflare Pages 前端环境变量。
+4. 真实资金数据不要写死在代码默认值里。
+5. 默认资产数据只使用演示数据。
+6. 线上使用真实复盘、资金、隐私内容前，建议先确认登录和同步逻辑已经正常。
 
 ## Vercel 在线部署说明
 
@@ -93,7 +184,7 @@ http://localhost:5173/
 5. Vercel 数据不会自动同步到 Cloudflare Pages。
 6. Cloudflare Pages 数据不会自动同步到 Netlify。
 7. 线上演示时先用测试数据，不要填真实隐私复盘、资金、戒色等内容。
-8. 后续如果要同步数据，需要再设计导出导入 JSON 或真正的后端数据库。
+8. 当前已支持可选 Supabase 云同步；未配置或未登录时，仍然只使用当前域名下的 localStorage。
 
 ## 手机打不开线上地址时怎么排查
 
