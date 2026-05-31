@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#0f172a"/>
+  <path d="M28 35h72v11H70v14h25v11H70v23H58V71H33V60h25V46H28z" fill="#f8fafc"/>
+  <text x="64" y="111" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#22c55e">木</text>
+</svg>
