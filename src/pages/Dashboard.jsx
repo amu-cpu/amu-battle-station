@@ -36,6 +36,7 @@ export default function Dashboard({
   bodyRecord,
   hasBodyRecord,
   financeStatus,
+  privacyMode,
   reviewRecord,
   hasReviewRecord,
 }) {
@@ -269,7 +270,7 @@ export default function Dashboard({
 
         <Card title="资金雷达概览" eyebrow="Finance">
           <div className="grid grid-cols-2 gap-2">
-            <StatItem label="总资产" value={formatCurrency(financeStatus.total)} />
+            <StatItem label="总资产" value={privacyMode ? '****' : formatCurrency(financeStatus.total)} />
             <StatItem label="偏高" value={financeStatus.highCount} />
             <StatItem label="偏低" value={financeStatus.lowCount} />
             <StatItem label="正常" value={financeStatus.normalCount} />

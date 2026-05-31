@@ -8,6 +8,7 @@ export const STORAGE_KEYS = {
   bodyByDate: 'amu-battle-station:body-by-date',
   reviewByDate: 'amu-battle-station:review-by-date',
   assets: 'amu-battle-station:assets',
+  privacyMode: 'amu-battle-station:privacy-mode',
   xianyuRecords: 'amu-battle-station:xianyu-records',
   bodyRecords: 'amu-battle-station:body-records',
   financeAssets: 'amu-battle-station:finance-assets',

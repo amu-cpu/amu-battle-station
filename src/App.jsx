@@ -30,6 +30,7 @@ function App() {
   const [bodyByDate, setBodyByDate] = useStoredState(STORAGE_KEYS.bodyByDate, () => migrateDateMap(STORAGE_KEYS.bodyRecords))
   const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets))
   const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords))
+  const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, false)
 
   useEffect(() => {
     setTasksByDate((current) => {
@@ -85,6 +86,7 @@ function App() {
         bodyRecord={bodyRecord}
         hasBodyRecord={hasBodyRecord(bodyByDate[selectedDate])}
         financeStatus={financeStatus}
+        privacyMode={privacyMode}
         reviewRecord={reviewRecord}
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
       />
@@ -108,7 +110,14 @@ function App() {
         bodyScore={bodyScore}
       />
     ),
-    finance: <FinancePanel assets={financeAssets} setAssets={setFinanceAssets} />,
+    finance: (
+      <FinancePanel
+        assets={financeAssets}
+        setAssets={setFinanceAssets}
+        privacyMode={privacyMode}
+        setPrivacyMode={setPrivacyMode}
+      />
+    ),
     review: <ReviewPanel selectedDate={selectedDate} reviewRecords={reviewByDate} setReviewRecords={setReviewByDate} />,
   }
 

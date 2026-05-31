@@ -1,4 +1,4 @@
-import { Pencil, Plus, Save, Trash2, X } from 'lucide-react'
+import { Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import Badge from '../components/Badge'
 import Button from '../components/Button'
@@ -18,7 +18,7 @@ const emptyAsset = {
 
 const numberFields = ['amount', 'target', 'lower', 'upper']
 
-export default function FinancePanel({ assets, setAssets }) {
+export default function FinancePanel({ assets, setAssets, privacyMode, setPrivacyMode }) {
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyAsset)
   const [emotionVisible, setEmotionVisible] = useState(false)
@@ -26,6 +26,7 @@ export default function FinancePanel({ assets, setAssets }) {
   const rows = useMemo(() => assets.map((asset) => ({ ...asset, ...getAssetStatus(asset, total) })), [assets, total])
   const highCount = rows.filter((row) => row.status === '偏高').length
   const lowCount = rows.filter((row) => row.status === '偏低').length
+  const moneyText = (value) => (privacyMode ? '****' : formatCurrency(value))
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -73,13 +74,26 @@ export default function FinancePanel({ assets, setAssets }) {
   return (
     <div className="space-y-4">
       <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-500">资金雷达台</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">只做记录和提醒，不给投资建议</h1>
-        <p className="mt-2 text-sm text-slate-600">根据你手动填写的金额和上下限，判断仓位是否越界。</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-500">资金雷达台</p>
+            <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">只做记录和提醒，不给投资建议</h1>
+            <p className="mt-2 text-sm text-slate-600">根据你手动填写的金额和上下限，判断仓位是否越界。</p>
+          </div>
+          <Button
+            type="button"
+            variant={privacyMode ? 'primary' : 'secondary'}
+            icon={privacyMode ? EyeOff : Eye}
+            onClick={() => setPrivacyMode((value) => !value)}
+            className="sm:mt-1"
+          >
+            隐私模式{privacyMode ? '已开启' : '已关闭'}
+          </Button>
+        </div>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <ScoreCard label="总资产" value={formatCurrency(total)} detail="手动记录合计" tone="green" />
+        <ScoreCard label="总资产" value={moneyText(total)} detail="手动记录合计" tone="green" />
         <ScoreCard label="资产数量" value={assets.length} detail="可新增、编辑、删除" />
         <ScoreCard label="偏高资产" value={highCount} detail="超过上限要控制" tone={highCount ? 'red' : 'green'} />
         <ScoreCard label="偏低资产" value={lowCount} detail="低于下限仅提醒关注" tone={lowCount ? 'yellow' : 'green'} />
@@ -88,7 +102,14 @@ export default function FinancePanel({ assets, setAssets }) {
       <Card title={editingId ? '编辑资产' : '新增资产'} eyebrow="Record">
         <form onSubmit={saveAsset} className="grid gap-3 lg:grid-cols-6">
           <Input label="资产名称" value={form.name} onChange={(event) => updateField('name', event.target.value)} placeholder="例如：现金池" className="lg:col-span-2" />
-          <Input label="当前金额" type="number" min="0" value={form.amount} onChange={(event) => updateField('amount', event.target.value)} />
+          <Input
+            label="当前金额"
+            type={privacyMode ? 'password' : 'number'}
+            min="0"
+            value={form.amount}
+            onChange={(event) => updateField('amount', event.target.value)}
+            autoComplete="off"
+          />
           <Input label="目标占比" type="number" min="0" step="0.1" value={form.target} onChange={(event) => updateField('target', event.target.value)} />
           <Input label="下限" type="number" min="0" step="0.1" value={form.lower} onChange={(event) => updateField('lower', event.target.value)} />
           <Input label="上限" type="number" min="0" step="0.1" value={form.upper} onChange={(event) => updateField('upper', event.target.value)} />
@@ -140,7 +161,7 @@ export default function FinancePanel({ assets, setAssets }) {
               {rows.map((row) => (
                 <tr key={row.id} className="align-top">
                   <td className="py-3 pr-3 font-semibold text-slate-900">{row.name}</td>
-                  <td className="py-3 pr-3">{formatCurrency(row.amount)}</td>
+                  <td className="py-3 pr-3">{moneyText(row.amount)}</td>
                   <td className="py-3 pr-3">{formatPercent(row.ratio)}</td>
                   <td className="py-3 pr-3">{formatPercent(row.target)}</td>
                   <td className="py-3 pr-3">
