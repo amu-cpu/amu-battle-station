@@ -263,7 +263,7 @@ export default function Dashboard({
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="体重" value={bodyRecord.weight || '未记录'} />
             <StatItem label="睡眠" value={bodyRecord.sleepHours ? `${bodyRecord.sleepHours} 小时` : '未记录'} />
-            <StatItem label="运动" value={bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录'} />
+            <StatItem label="运动" value={bodyRecord.exerciseText || (bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录')} />
             <StatItem label="身体分" value={`${scores.bodyScore}/100`} />
           </div>
         </Card>
@@ -280,7 +280,7 @@ export default function Dashboard({
         <Card title="今日复盘状态" eyebrow="Review">
           <div className="grid gap-2">
             <StatItem label="是否已复盘" value={hasReviewRecord ? '已填写' : '未填写'} />
-            <StatItem label="今天最大的风险" value={reviewRecord.biggestRisk || '未记录'} />
+            <StatItem label="今天最重要的一件事" value={reviewRecord.importantThing || reviewRecord.valuableThing || '未记录'} />
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-bold text-slate-500">明天最重要 3 件事</p>
               <p className="mt-1 whitespace-pre-line break-words text-sm font-black text-slate-950">

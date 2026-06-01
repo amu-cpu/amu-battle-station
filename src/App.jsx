@@ -22,9 +22,13 @@ import {
   createAppStateSnapshot,
   hasMeaningfulAppState,
   migrateAssets,
+  migrateBodyRecordsMap,
   migrateDateMap,
+  migrateFinanceAssets,
   migrateLocalStorageToAppState,
   migrateOpsByDate,
+  migrateReviewRecordsMap,
+  migrateTasksMap,
   migrateTasksByDate,
   normalizeAppState,
   STORAGE_KEYS,
@@ -48,11 +52,11 @@ function App() {
   const today = getTodayKey()
   const [selectedDate, setSelectedDate] = useState(today)
   const [activePage, setActivePage] = useState('dashboard')
-  const [tasksByDate, setTasksByDate] = useStoredState(STORAGE_KEYS.tasksByDate, migrateTasksByDate)
+  const [tasksByDate, setTasksByDate] = useStoredState(STORAGE_KEYS.tasksByDate, migrateTasksByDate, migrateTasksMap)
   const [opsByDate, setOpsByDate] = useStoredState(STORAGE_KEYS.opsByDate, migrateOpsByDate)
-  const [bodyByDate, setBodyByDate] = useStoredState(STORAGE_KEYS.bodyByDate, () => migrateDateMap(STORAGE_KEYS.bodyRecords))
-  const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets))
-  const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords))
+  const [bodyByDate, setBodyByDate] = useStoredState(STORAGE_KEYS.bodyByDate, () => migrateDateMap(STORAGE_KEYS.bodyRecords), migrateBodyRecordsMap)
+  const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets), migrateFinanceAssets)
+  const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords), migrateReviewRecordsMap)
   const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, true)
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(false)

@@ -32,12 +32,17 @@ export const defaultBodyRecord = {
   lunch: '',
   dinner: '',
   snack: '',
+  afternoonSnack: '',
+  eveningSnack: '',
+  legacySnack: '',
   exercise: '未记录',
+  exerciseText: '',
   note: '',
 }
 
 export const defaultReviewRecord = {
   date: '',
+  importantThing: '',
   valuableThing: '',
   stupidThing: '',
   unfinishedReason: '',

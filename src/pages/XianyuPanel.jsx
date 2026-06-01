@@ -92,7 +92,7 @@ export default function XianyuPanel({
     })
 
     if (editingId) {
-      setRecords((current) => current.map((record) => (record.id === editingId ? { ...payload, id: editingId } : record)))
+      setRecords((current) => current.map((record) => (record.id === editingId ? { ...record, ...payload, id: editingId } : record)))
     } else {
       setRecords((current) => [{ ...payload, id: `xianyu-${Date.now()}` }, ...current])
     }

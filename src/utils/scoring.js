@@ -11,6 +11,10 @@ function isFilled(value) {
   return String(value ?? '').trim() !== ''
 }
 
+function getExerciseValue(record) {
+  return record?.exerciseText || (record?.exercise !== '未记录' ? record?.exercise : '')
+}
+
 export function calculateTaskScore(tasks) {
   if (!tasks.length) return 0
   const doneCount = tasks.filter((task) => task.done).length
@@ -82,7 +86,7 @@ export function calculateBodyScore(record) {
 
   let score = 0
   if (toNumber(record.sleepHours) >= 7) score += 30
-  if (isFilled(record.exercise) && record.exercise !== '未记录') score += 30
+  if (isFilled(getExerciseValue(record))) score += 30
   if (String(record.weight || '').trim()) score += 10
   if (String(record.lunch || record.dinner || record.snack || '').trim()) score += 20
   if (String(record.note || '').trim()) score += 10
@@ -91,7 +95,17 @@ export function calculateBodyScore(record) {
 }
 
 export function hasBodyDiet(record) {
-  return Boolean(record && (isFilled(record.lunch) || isFilled(record.dinner) || isFilled(record.snack)))
+  return Boolean(
+    record &&
+      (isFilled(record.lunch) ||
+        isFilled(record.dinner) ||
+        isFilled(record.snack) ||
+        isFilled(record.afternoonSnack) ||
+        isFilled(record.eveningSnack) ||
+        isFilled(record.legacySnack) ||
+        isFilled(record.extraMeal) ||
+        isFilled(record.加餐)),
+  )
 }
 
 export function hasBodyRecord(record) {
@@ -103,7 +117,7 @@ export function hasBodyRecord(record) {
       isFilled(record.wakeTime) ||
       isFilled(record.sleepHours) ||
       hasBodyDiet(record) ||
-      (isFilled(record.exercise) && record.exercise !== '未记录') ||
+      isFilled(getExerciseValue(record)) ||
       isFilled(record.note),
   )
 }
@@ -117,6 +131,7 @@ export function hasReviewCore(record) {
 
   return Boolean(
     isFilled(record.valuableThing) ||
+      isFilled(record.importantThing) ||
       isFilled(record.stupidThing) ||
       isFilled(record.unfinishedReason) ||
       isFilled(record.tomorrowTop3) ||
@@ -134,10 +149,8 @@ export function isReviewComplete(record) {
   if (!record) return false
 
   return Boolean(
-    String(record.valuableThing || '').trim() &&
-      String(record.tomorrowTop3 || '').trim() &&
-      record.discipline &&
-      record.discipline !== '未记录',
+    String(record.importantThing || record.valuableThing || '').trim() &&
+      String(record.tomorrowTop3 || '').trim(),
   )
 }
 
@@ -163,7 +176,7 @@ export function applyTaskAutomation(tasks, { operationSummary, bodyRecord, revie
         autoDone = isFilled(bodyRecord?.sleepHours)
         break
       case '完成俯卧撑、步行、跑步机或羽毛球中的任意一种':
-        autoDone = Boolean(isFilled(bodyRecord?.exercise) && bodyRecord.exercise !== '未记录')
+        autoDone = Boolean(isFilled(getExerciseValue(bodyRecord)))
         break
       case '记录今天饮食':
         autoDone = hasBodyDiet(bodyRecord)

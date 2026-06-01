@@ -10,6 +10,19 @@ function displayExercise(value) {
   return value && value !== '未记录' ? value : ''
 }
 
+function getExerciseText(record) {
+  return displayExercise(record?.exerciseText) || displayExercise(record?.exercise)
+}
+
+function getLegacySnack(record) {
+  return record?.legacySnack || record?.snack || record?.extraMeal || record?.加餐 || ''
+}
+
+function getSnackSummary(record) {
+  const snacks = [record?.afternoonSnack, record?.eveningSnack].filter(Boolean)
+  return snacks.length ? snacks.join(' / ') : getLegacySnack(record)
+}
+
 export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, bodyScore }) {
   const record = { ...defaultBodyRecord, date: selectedDate, ...(bodyRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(bodyRecords)).slice(0, 10)
@@ -27,8 +40,8 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
   }
 
   function appendExercise(text) {
-    const currentExercise = displayExercise(record.exercise).trim()
-    saveField('exercise', currentExercise ? `${currentExercise} + ${text}` : text)
+    const currentExercise = getExerciseText(record).trim()
+    saveField('exerciseText', currentExercise ? `${currentExercise} + ${text}` : text)
   }
 
   return (
@@ -42,7 +55,7 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 运动 / 饮食 / 备注" tone="green" />
         <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
-        <ScoreCard label="运动" value={displayExercise(record.exercise) ? '已记' : '未记'} detail="完成运动加 30 分" tone={displayExercise(record.exercise) ? 'green' : 'yellow'} />
+        <ScoreCard label="运动" value={getExerciseText(record) ? '已记' : '未记'} detail="完成运动加 30 分" tone={getExerciseText(record) ? 'green' : 'yellow'} />
         <ScoreCard label="体重" value={record.weight || '未记'} detail="记录体重加 10 分" />
       </div>
 
@@ -73,13 +86,14 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
           />
           <Input label="中餐" value={record.lunch} onChange={(event) => saveField('lunch', event.target.value)} placeholder="吃了什么，别骗自己" className="xl:col-span-2" />
           <Input label="晚餐" value={record.dinner} onChange={(event) => saveField('dinner', event.target.value)} className="xl:col-span-2" />
-          <Input label="加餐" value={record.snack} onChange={(event) => saveField('snack', event.target.value)} className="xl:col-span-2" />
+          <Input label="下午加餐" value={record.afternoonSnack || ''} onChange={(event) => saveField('afternoonSnack', event.target.value)} placeholder={getLegacySnack(record) || ''} className="xl:col-span-2" />
+          <Input label="晚上加餐" value={record.eveningSnack || ''} onChange={(event) => saveField('eveningSnack', event.target.value)} className="xl:col-span-2" />
           <div className="xl:col-span-5">
             <Input
               as="textarea"
               label="运动记录"
-              value={displayExercise(record.exercise)}
-              onChange={(event) => saveField('exercise', event.target.value)}
+              value={getExerciseText(record)}
+              onChange={(event) => saveField('exerciseText', event.target.value)}
               placeholder="俯卧撑50个 + 步行3公里 + 羽毛球1小时"
               inputClassName="min-h-24"
             />
@@ -128,8 +142,8 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
                     <td className="py-3 pr-3 font-semibold text-slate-900">{item.date}</td>
                     <td className="py-3 pr-3">{item.weight || '-'}</td>
                     <td className="py-3 pr-3">{item.sleepHours || '-'} 小时</td>
-                    <td className="max-w-72 py-3 pr-3 text-slate-700">{displayExercise(item.exercise) || '-'}</td>
-                    <td className="max-w-64 py-3 pr-3 text-slate-600">{[item.lunch, item.dinner, item.snack].filter(Boolean).join(' / ') || '-'}</td>
+                    <td className="max-w-72 py-3 pr-3 text-slate-700">{getExerciseText(item) || '-'}</td>
+                    <td className="max-w-64 py-3 pr-3 text-slate-600">{[item.lunch, item.dinner, getSnackSummary(item)].filter(Boolean).join(' / ') || '-'}</td>
                     <td className="max-w-64 py-3 pr-3 text-slate-600">{item.note || '-'}</td>
                   </tr>
                 ))

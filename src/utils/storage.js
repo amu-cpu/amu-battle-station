@@ -65,6 +65,20 @@ function isPlainObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
+function hasStoredValue(value) {
+  return value !== undefined && value !== null && String(value).trim() !== ''
+}
+
+function firstStoredValue(source, keys) {
+  return keys.map((key) => source?.[key]).find(hasStoredValue)
+}
+
+function fillIfEmpty(target, field, value) {
+  if (!hasStoredValue(target[field]) && hasStoredValue(value)) {
+    target[field] = value
+  }
+}
+
 function toDateMap(value) {
   return isPlainObject(value) ? value : {}
 }
@@ -144,16 +158,110 @@ export function normalizeAppState(state, fallbackAssets = []) {
   return {
     schemaVersion: APP_STATE_SCHEMA_VERSION,
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),
-    tasks: toDateMap(source.tasks ?? source.tasksByDate),
+    tasks: migrateTasksMap(toDateMap(source.tasks ?? source.tasksByDate)),
     xianyuRecords: toDateMap(source.xianyuRecords ?? source.opsByDate),
-    bodyRecords: toDateMap(source.bodyRecords ?? source.bodyByDate),
-    financeAssets: toAssetList(source.financeAssets ?? source.assets, fallbackAssets),
-    reviewRecords: toDateMap(source.reviewRecords ?? source.reviewByDate),
+    bodyRecords: migrateBodyRecordsMap(toDateMap(source.bodyRecords ?? source.bodyByDate)),
+    financeAssets: migrateFinanceAssets(toAssetList(source.financeAssets ?? source.assets, fallbackAssets)),
+    reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
     settings: {
       ...settings,
       privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
     },
   }
+}
+
+export function migrateBodyRecord(record) {
+  if (!isPlainObject(record)) return record
+
+  const next = { ...record }
+
+  fillIfEmpty(next, 'date', firstStoredValue(record, ['date', '日期']))
+  fillIfEmpty(next, 'weight', firstStoredValue(record, ['weight', '体重']))
+  fillIfEmpty(next, 'bedTime', firstStoredValue(record, ['bedTime', 'sleepTime', 'startSleepTime', '上床时间']))
+  fillIfEmpty(next, 'wakeTime', firstStoredValue(record, ['wakeTime', 'endSleepTime', 'wakeUpTime', '起床时间']))
+  fillIfEmpty(next, 'sleepHours', firstStoredValue(record, ['sleepHours', '睡眠小时']))
+  fillIfEmpty(next, 'lunch', firstStoredValue(record, ['lunch', '中餐']))
+  fillIfEmpty(next, 'dinner', firstStoredValue(record, ['dinner', '晚餐']))
+  fillIfEmpty(next, 'note', firstStoredValue(record, ['note', '身体备注', '备注']))
+
+  const legacySnack = firstStoredValue(record, ['legacySnack', 'snack', 'extraMeal', '加餐'])
+  fillIfEmpty(next, 'legacySnack', legacySnack)
+  fillIfEmpty(next, 'afternoonSnack', firstStoredValue(record, ['afternoonSnack', '下午加餐', '下午加']))
+  fillIfEmpty(next, 'eveningSnack', firstStoredValue(record, ['eveningSnack', '晚上加餐', '晚上加']))
+
+  if (!hasStoredValue(next.afternoonSnack) && hasStoredValue(legacySnack)) {
+    next.afternoonSnack = legacySnack
+  }
+
+  fillIfEmpty(next, 'exerciseText', firstStoredValue(record, ['exerciseText', '运动记录']))
+
+  if (!hasStoredValue(next.exerciseText) && hasStoredValue(record.exercise) && record.exercise !== '未记录') {
+    next.exerciseText = record.exercise
+  }
+
+  return {
+    schemaVersion: APP_STATE_SCHEMA_VERSION,
+    ...next,
+  }
+}
+
+export function migrateReviewRecord(record) {
+  if (!isPlainObject(record)) return record
+
+  const next = { ...record }
+
+  fillIfEmpty(next, 'date', firstStoredValue(record, ['date', '日期']))
+  fillIfEmpty(next, 'importantThing', firstStoredValue(record, ['importantThing', '今天最重要的一件事', 'valuableThing', '今天最值钱的一件事']))
+  fillIfEmpty(next, 'valuableThing', firstStoredValue(record, ['valuableThing', '今天最值钱的一件事', 'importantThing', '今天最重要的一件事']))
+  fillIfEmpty(next, 'stupidThing', firstStoredValue(record, ['stupidThing', '今天最蠢的一件事']))
+  fillIfEmpty(next, 'unfinishedReason', firstStoredValue(record, ['unfinishedReason', '今天为什么没完成']))
+  fillIfEmpty(next, 'tomorrowTop3', firstStoredValue(record, ['tomorrowTop3', '明天最重要 3 件事', '明天最重要的三件事']))
+  fillIfEmpty(next, 'discipline', firstStoredValue(record, ['discipline', '今天有没有破戒或摆烂']))
+  fillIfEmpty(next, 'biggestRisk', firstStoredValue(record, ['biggestRisk', '今天最大风险是什么']))
+
+  return {
+    schemaVersion: APP_STATE_SCHEMA_VERSION,
+    ...next,
+  }
+}
+
+export function migrateFinanceAsset(asset) {
+  if (!isPlainObject(asset)) return asset
+
+  const next = { ...asset }
+
+  fillIfEmpty(next, 'name', firstStoredValue(asset, ['name', '资产名称']))
+  fillIfEmpty(next, 'amount', firstStoredValue(asset, ['amount', '金额']))
+  fillIfEmpty(next, 'target', firstStoredValue(asset, ['target', '目标']))
+  fillIfEmpty(next, 'lower', firstStoredValue(asset, ['lower', '下限']))
+  fillIfEmpty(next, 'upper', firstStoredValue(asset, ['upper', '上限']))
+  fillIfEmpty(next, 'note', firstStoredValue(asset, ['note', '备注']))
+
+  return {
+    ...next,
+  }
+}
+
+export function migrateTasksMap(tasksByDate) {
+  return Object.fromEntries(
+    Object.entries(toDateMap(tasksByDate)).map(([dateKey, tasks]) => [dateKey, Array.isArray(tasks) ? tasks.map((task) => ({ ...task })) : tasks]),
+  )
+}
+
+export function migrateBodyRecordsMap(recordsByDate) {
+  return Object.fromEntries(
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateBodyRecord({ date: dateKey, ...record })]),
+  )
+}
+
+export function migrateReviewRecordsMap(recordsByDate) {
+  return Object.fromEntries(
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateReviewRecord({ date: dateKey, ...record })]),
+  )
+}
+
+export function migrateFinanceAssets(assets) {
+  return Array.isArray(assets) ? assets.map(migrateFinanceAsset) : []
 }
 
 export function createAppStateSnapshot({
@@ -244,20 +352,32 @@ function parseBackupValue(raw) {
 
 export function createProjectBackupPayload() {
   const data = {}
+  const rawLocalStorage = {}
 
   readProjectKeys().forEach((key) => {
-    data[key] = parseBackupValue(window.localStorage.getItem(key))
+    const raw = window.localStorage.getItem(key)
+    rawLocalStorage[key] = raw
+    data[key] = parseBackupValue(raw)
   })
 
   return {
     app: 'amu-battle-station',
+    schemaVersion: APP_STATE_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     data,
+    appState: migrateLocalStorageToAppState(),
+    rawLocalStorage,
   }
 }
 
 export function restoreProjectBackupPayload(payload) {
-  const data = payload?.data
+  const data =
+    payload?.data ||
+    (payload?.rawLocalStorage && typeof payload.rawLocalStorage === 'object'
+      ? Object.fromEntries(
+          Object.entries(payload.rawLocalStorage).map(([key, raw]) => [key, parseBackupValue(raw)]),
+        )
+      : null)
 
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new Error('备份文件格式不正确。')
@@ -328,16 +448,21 @@ export function migrateAssets(fallbackAssets) {
   return readStorage(STORAGE_KEYS.financeAssets, fallbackAssets)
 }
 
-export function useStoredState(key, fallback) {
+export function useStoredState(key, fallback, migrateValue = (value) => value) {
   const fallbackRef = useRef(fallback)
-  const [value, setValue] = useState(() => readStorage(key, fallback))
+  const migrateRef = useRef(migrateValue)
+  const [value, setValue] = useState(() => migrateValue(readStorage(key, fallback)))
 
   useEffect(() => {
     fallbackRef.current = fallback
   }, [fallback])
 
   useEffect(() => {
-    setValue(readStorage(key, fallbackRef.current))
+    migrateRef.current = migrateValue
+  }, [migrateValue])
+
+  useEffect(() => {
+    setValue(migrateRef.current(readStorage(key, fallbackRef.current)))
   }, [key])
 
   useEffect(() => {

@@ -4,7 +4,7 @@ import Badge from '../components/Badge'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
-import { defaultReviewRecord, DISCIPLINE_OPTIONS } from '../utils/defaults'
+import { defaultReviewRecord } from '../utils/defaults'
 import { formatDateLabel, sortByDateDesc } from '../utils/date'
 import { isReviewComplete } from '../utils/scoring'
 import { clearProjectStorage, createProjectBackupPayload, restoreProjectBackupPayload } from '../utils/storage'
@@ -121,28 +121,12 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
       >
         <div className="grid gap-4 xl:grid-cols-2">
           <Input label="日期" type="date" value={record.date} disabled />
-          <Input as="select" label="今天有没有破戒或摆烂" options={DISCIPLINE_OPTIONS} value={record.discipline} onChange={(event) => saveField('discipline', event.target.value)} />
           <Input
             as="textarea"
-            label="今天最值钱的一件事"
-            value={record.valuableThing}
-            onChange={(event) => saveField('valuableThing', event.target.value)}
+            label="今天最重要的一件事"
+            value={record.importantThing || record.valuableThing}
+            onChange={(event) => saveField('importantThing', event.target.value)}
             placeholder="写具体动作，不写感受空话。"
-            inputClassName="min-h-40"
-          />
-          <Input
-            as="textarea"
-            label="今天最蠢的一件事"
-            value={record.stupidThing}
-            onChange={(event) => saveField('stupidThing', event.target.value)}
-            placeholder="哪里浪费时间、上头或逃避了？"
-            inputClassName="min-h-40"
-          />
-          <Input
-            as="textarea"
-            label="今天为什么没完成"
-            value={record.unfinishedReason}
-            onChange={(event) => saveField('unfinishedReason', event.target.value)}
             inputClassName="min-h-40"
           />
           <Input
@@ -152,15 +136,6 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
             onChange={(event) => saveField('tomorrowTop3', event.target.value)}
             placeholder="一行一件，必须能执行。"
             inputClassName="min-h-40"
-          />
-          <Input
-            as="textarea"
-            label="今天最大的风险是什么"
-            className="xl:col-span-2"
-            value={record.biggestRisk}
-            onChange={(event) => saveField('biggestRisk', event.target.value)}
-            placeholder="钱、身体、情绪、拖延，哪个最危险？"
-            inputClassName="min-h-36"
           />
         </div>
       </Card>
@@ -178,26 +153,37 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
                 </div>
                 <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
                   <p>
-                    <span className="font-bold text-slate-950">最值钱：</span>
-                    {item.valuableThing || '-'}
-                  </p>
-                  <p>
-                    <span className="font-bold text-slate-950">最蠢：</span>
-                    {item.stupidThing || '-'}
-                  </p>
-                  <p>
-                    <span className="font-bold text-slate-950">未完成原因：</span>
-                    {item.unfinishedReason || '-'}
-                  </p>
-                  <p>
-                    <span className="font-bold text-slate-950">最大风险：</span>
-                    {item.biggestRisk || '-'}
+                    <span className="font-bold text-slate-950">最重要：</span>
+                    {item.importantThing || item.valuableThing || '-'}
                   </p>
                   <p className="md:col-span-2">
                     <span className="font-bold text-slate-950">明天 3 件事：</span>
                     {item.tomorrowTop3 || '-'}
                   </p>
                 </div>
+                {item.stupidThing || item.unfinishedReason || item.biggestRisk || item.discipline ? (
+                  <details className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <summary className="cursor-pointer font-bold text-slate-900">旧字段详情</summary>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      <p>
+                        <span className="font-bold text-slate-950">最蠢：</span>
+                        {item.stupidThing || '-'}
+                      </p>
+                      <p>
+                        <span className="font-bold text-slate-950">未完成原因：</span>
+                        {item.unfinishedReason || '-'}
+                      </p>
+                      <p>
+                        <span className="font-bold text-slate-950">破戒/摆烂：</span>
+                        {item.discipline || '-'}
+                      </p>
+                      <p>
+                        <span className="font-bold text-slate-950">最大风险：</span>
+                        {item.biggestRisk || '-'}
+                      </p>
+                    </div>
+                  </details>
+                ) : null}
               </article>
             ))
           ) : (

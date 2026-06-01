@@ -47,7 +47,7 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
 
     const payload = { ...form, name }
     if (editingId) {
-      setAssets((current) => current.map((asset) => (asset.id === editingId ? { ...payload, id: editingId } : asset)))
+      setAssets((current) => current.map((asset) => (asset.id === editingId ? { ...asset, ...payload, id: editingId } : asset)))
     } else {
       setAssets((current) => [...current, { ...payload, id: `asset-${Date.now()}` }])
     }
