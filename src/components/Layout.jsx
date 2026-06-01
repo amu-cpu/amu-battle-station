@@ -11,7 +11,7 @@ const navItems = [
 export default function Layout({ activePage, onNavigate, children }) {
   return (
     <div className="min-h-svh bg-slate-50 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-slate-200 bg-slate-950 p-5 text-white md:block">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 border-r border-slate-200 bg-slate-950 p-5 text-white md:block">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-xl font-black text-slate-950">
             木
@@ -48,8 +48,8 @@ export default function Layout({ activePage, onNavigate, children }) {
         </p>
       </aside>
 
-      <main className="mx-auto min-h-svh w-full max-w-7xl px-4 pb-28 pt-4 md:ml-64 md:w-[calc(100%-16rem)] md:px-6 md:pb-8 md:pt-6">
-        {children}
+      <main className="min-h-svh w-full px-4 pb-28 pt-4 md:ml-60 md:w-[calc(100%-15rem)] md:px-6 md:pb-6 md:pt-5 xl:px-8">
+        <div className="mx-auto w-full max-w-[1600px]">{children}</div>
       </main>
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 py-2 backdrop-blur md:hidden">

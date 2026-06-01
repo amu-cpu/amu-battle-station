@@ -19,7 +19,7 @@ const DEFAULT_TASKS = [
 
 export const DEFAULT_SHOPS = ['店铺A', '店铺B']
 
-export const EXERCISE_OPTIONS = ['未记录', '俯卧撑', '步行', '跑步机', '羽毛球', '骑车', '其他']
+export const EXERCISE_OPTIONS = ['俯卧撑', '步行', '跑步机', '羽毛球', '骑车', '拉伸', '其他']
 
 export const DISCIPLINE_OPTIONS = ['未记录', '没有', '有']
 

@@ -1,6 +1,8 @@
 # 阿木作战台
 
-一个本地个人每日作战台网页 App，用来记录闲鱼运营、身体打卡、资金仓位、每日复盘和自我约束。
+阿木作战台 V1.1 桌面本地版。
+
+一个个人每日作战台网页 App，用来记录闲鱼运营、身体打卡、资金仓位、每日复盘和自我约束。当前阶段优先电脑网页端使用，目标是简单、方便、直观、低摩擦。
 
 ## 电脑上运行
 
@@ -18,7 +20,9 @@ npm run dev
 http://localhost:5173/
 ```
 
-## iPhone Safari 使用
+## 手机端使用
+
+手机端只保证基本可访问，不作为 V1.1 主使用场景。
 
 1. 让电脑和 iPhone 连接同一个局域网。
 2. 在电脑上运行 `npm run dev -- --host 0.0.0.0`。
@@ -33,18 +37,37 @@ http://localhost:5173/
 
 ## 数据保存说明
 
-当前 App 支持两种存储模式：
+当前主版本是桌面本地版：
 
-1. 未登录时：数据保存在当前浏览器的 localStorage 中，不跨设备同步。
-2. 登录后：使用 Supabase 云端同步，同一个邮箱账号登录后，电脑和手机会同步同一份数据。
+1. 默认使用当前浏览器的 localStorage 保存数据。
+2. 刷新页面不会丢失数据。
+3. 不同浏览器、不同设备、不同域名之间的 localStorage 不互通。
+4. JSON 导出 / 导入用于备份、迁移和恢复。
+5. Cloudflare Pages 用于网页访问和自动部署。
+6. 资金页默认开启隐私模式。
+7. 不建议把真实资产金额写入默认代码。
 
-localStorage 仍然会保留，作为离线缓存和降级方案。同步失败时，本地数据仍会先保存到浏览器里。
+重要数据建议定期在“每日复盘台”底部导出 JSON 备份。
 
-JSON 导出 / 导入仍然保留：云同步用于多设备一致，JSON 备份用于灾难恢复。重要数据建议定期在“每日复盘台”底部导出备份。
+## 云同步暂存说明
 
-## Supabase 云端同步说明
+Supabase 云同步功能已暂存，当前版本默认不启用，也不在主界面显示登录或同步入口。
 
-### 存储结构
+如果后续要重新启用云同步，需要配置 Supabase 环境变量，并显式打开开关：
+
+```text
+VITE_ENABLE_CLOUD_SYNC=true
+VITE_SUPABASE_URL=你的 Supabase Project URL
+VITE_SUPABASE_ANON_KEY=你的 Supabase anon public key
+```
+
+不要在前端使用或提交 Supabase `service_role` key。
+
+### Supabase 云端同步说明
+
+下面内容仅作为后续恢复云同步时的配置备忘。
+
+#### 存储结构
 
 云端同步使用 Supabase Auth 邮箱 Magic Link 登录，并用一张 `app_states` 表保存整份 App 状态。
 
@@ -63,7 +86,7 @@ App State 格式：
 }
 ```
 
-### Supabase 配置步骤
+#### Supabase 配置步骤
 
 1. 创建 Supabase 项目。
 2. 打开 Supabase SQL Editor。
@@ -100,7 +123,7 @@ using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 ```
 
-### Cloudflare Pages 环境变量
+#### Cloudflare Pages 环境变量
 
 进入 Cloudflare Pages 项目：
 
@@ -113,18 +136,19 @@ Pages 项目 -> Settings -> Environment variables
 ```text
 VITE_SUPABASE_URL=你的 Supabase Project URL
 VITE_SUPABASE_ANON_KEY=你的 Supabase anon public key
+VITE_ENABLE_CLOUD_SYNC=true
 ```
 
-本项目只需要这两个变量。不要在前端使用或提交 Supabase `service_role` key。
+云同步关闭时，不需要配置这些变量。
 
-### 安全说明
+#### 安全说明
 
 1. 必须开启 Row Level Security。
 2. 只使用 Supabase anon key。
 3. 不要把 `service_role` key 写进前端代码、`.env` 或 Cloudflare Pages 前端环境变量。
 4. 真实资金数据不要写死在代码默认值里。
 5. 默认资产数据只使用演示数据。
-6. 线上使用真实复盘、资金、隐私内容前，建议先确认登录和同步逻辑已经正常。
+6. 线上使用真实复盘、资金、隐私内容前，建议先确认隐私模式和 JSON 备份可用。
 
 ## Vercel 在线部署说明
 
@@ -184,7 +208,7 @@ VITE_SUPABASE_ANON_KEY=你的 Supabase anon public key
 5. Vercel 数据不会自动同步到 Cloudflare Pages。
 6. Cloudflare Pages 数据不会自动同步到 Netlify。
 7. 线上演示时先用测试数据，不要填真实隐私复盘、资金、戒色等内容。
-8. 当前已支持可选 Supabase 云同步；未配置或未登录时，仍然只使用当前域名下的 localStorage。
+8. Supabase 云同步已暂存，当前 V1.1 默认只使用当前域名下的 localStorage。
 
 ## 手机打不开线上地址时怎么排查
 
@@ -197,12 +221,12 @@ VITE_SUPABASE_ANON_KEY=你的 Supabase anon public key
 7. 如果所有海外托管地址都打不开，就考虑代理、DNS 或以后绑定自定义域名。
 8. 不要因为手机打不开就立刻改业务代码。
 
-## 第一版范围
+## V1.1 范围
 
 - 今日作战台：每日任务、作战分、风险提醒。
 - 闲鱼运营台：运营记录增删改、今日汇总、运营诊断。
-- 身体打卡台：睡眠、饮食、运动、备注和最近 10 条历史。
+- 身体打卡台：睡眠、饮食、运动记录、备注和最近 10 条历史。
 - 资金雷达台：手动资产记录、总资产、占比、上下限状态。
-- 每日复盘台：自动保存当天复盘和最近 10 条历史。
+- 每日复盘台：自动保存当天复盘、最近 10 条历史和 JSON 数据备份。
 
-不包含登录注册、后端服务、外部 API、客户交付台、CRM 或团队协作。
+默认不包含登录注册、后端服务、外部 API、客户交付台、CRM 或团队协作。

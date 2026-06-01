@@ -13,16 +13,43 @@ const emptyForm = {
   date: '',
   shopName: '店铺A',
   accountWarmed: false,
-  publishCount: 0,
-  exposure: 0,
-  inquiries: 0,
-  wechat: 0,
-  deals: 0,
-  income: 0,
+  publishCount: '',
+  exposure: '',
+  inquiries: '',
+  wechat: '',
+  deals: '',
+  income: '',
   exceptionReason: '',
 }
 
 const numberFields = ['publishCount', 'exposure', 'inquiries', 'wechat', 'deals', 'income']
+
+function normalizeNumberInput(value) {
+  const cleaned = String(value).replace(/[^\d.]/g, '')
+  if (!cleaned) return ''
+
+  const [integerPart, ...decimalParts] = cleaned.split('.')
+  const normalizedInteger = String(Number(integerPart || 0))
+
+  if (!cleaned.includes('.')) return normalizedInteger
+
+  return `${normalizedInteger}.${decimalParts.join('')}`
+}
+
+function toSavedNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+function recordToForm(record) {
+  return numberFields.reduce(
+    (form, field) => ({
+      ...form,
+      [field]: record[field] === undefined || record[field] === null ? '' : normalizeNumberInput(record[field]),
+    }),
+    { ...emptyForm, ...record },
+  )
+}
 
 export default function XianyuPanel({
   selectedDate,
@@ -44,7 +71,7 @@ export default function XianyuPanel({
   function updateField(field, value) {
     setForm((current) => ({
       ...current,
-      [field]: numberFields.includes(field) ? Number(value) : value,
+      [field]: numberFields.includes(field) ? normalizeNumberInput(value) : value,
     }))
   }
 
@@ -60,6 +87,9 @@ export default function XianyuPanel({
       shopName: form.shopName.trim() || '未命名店铺',
       date: selectedDate,
     }
+    numberFields.forEach((field) => {
+      payload[field] = toSavedNumber(payload[field])
+    })
 
     if (editingId) {
       setRecords((current) => current.map((record) => (record.id === editingId ? { ...payload, id: editingId } : record)))
@@ -72,7 +102,7 @@ export default function XianyuPanel({
 
   function editRecord(record) {
     setEditingId(record.id)
-    setForm({ ...emptyForm, ...record })
+    setForm(recordToForm(record))
   }
 
   function deleteRecord(recordId) {
@@ -80,14 +110,14 @@ export default function XianyuPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-5">
+      <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm font-semibold text-slate-500">闲鱼运营台 · {formatDateLabel(selectedDate)}</p>
-        <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">现金流动作不能断</h1>
+        <h1 className="mt-2 text-3xl font-black text-slate-950">现金流动作不能断</h1>
         <p className="mt-2 text-sm text-slate-600">发布、曝光、咨询、加微、成交，今天有没有往前推，一眼看清。</p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <ScoreCard label="运营分" value={operationScore} detail="发布 / 咨询 / 加微 / 成交" tone="cyan" />
         <ScoreCard label="发布" value={summary.publishCount} detail="今日商品数" />
         <ScoreCard label="曝光" value={summary.exposure} detail="入口是否有流量" />
@@ -103,9 +133,9 @@ export default function XianyuPanel({
       </Card>
 
       <Card title={editingId ? '编辑运营记录' : '新增运营记录'} eyebrow="Record">
-        <form onSubmit={saveRecord} className="grid gap-3 lg:grid-cols-4">
+        <form onSubmit={saveRecord} className="grid gap-3 xl:grid-cols-8">
           <Input label="日期" type="date" value={selectedDate} disabled />
-          <label className="block">
+          <label className="block xl:col-span-2">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">店铺名称</span>
             <input
               className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
@@ -120,12 +150,12 @@ export default function XianyuPanel({
               ))}
             </datalist>
           </label>
-          <Input label="发布数量" type="number" min="0" value={form.publishCount} onChange={(event) => updateField('publishCount', event.target.value)} />
-          <Input label="曝光" type="number" min="0" value={form.exposure} onChange={(event) => updateField('exposure', event.target.value)} />
-          <Input label="咨询" type="number" min="0" value={form.inquiries} onChange={(event) => updateField('inquiries', event.target.value)} />
-          <Input label="加微" type="number" min="0" value={form.wechat} onChange={(event) => updateField('wechat', event.target.value)} />
-          <Input label="成交" type="number" min="0" value={form.deals} onChange={(event) => updateField('deals', event.target.value)} />
-          <Input label="收入" type="number" min="0" value={form.income} onChange={(event) => updateField('income', event.target.value)} />
+          <Input label="发布数量" type="text" inputMode="decimal" value={form.publishCount} onChange={(event) => updateField('publishCount', event.target.value)} placeholder="0" />
+          <Input label="曝光" type="text" inputMode="decimal" value={form.exposure} onChange={(event) => updateField('exposure', event.target.value)} placeholder="0" />
+          <Input label="咨询" type="text" inputMode="decimal" value={form.inquiries} onChange={(event) => updateField('inquiries', event.target.value)} placeholder="0" />
+          <Input label="加微" type="text" inputMode="decimal" value={form.wechat} onChange={(event) => updateField('wechat', event.target.value)} placeholder="0" />
+          <Input label="成交" type="text" inputMode="decimal" value={form.deals} onChange={(event) => updateField('deals', event.target.value)} placeholder="0" />
+          <Input label="收入" type="text" inputMode="decimal" value={form.income} onChange={(event) => updateField('income', event.target.value)} placeholder="0" />
           <label className="flex min-h-11 items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 lg:self-end">
             <input
               type="checkbox"
@@ -137,12 +167,12 @@ export default function XianyuPanel({
           </label>
           <Input
             label="异常原因"
-            className="lg:col-span-3"
+            className="xl:col-span-6"
             value={form.exceptionReason}
             onChange={(event) => updateField('exceptionReason', event.target.value)}
             placeholder="没有异常就留空"
           />
-          <div className="flex flex-wrap gap-2 lg:col-span-4">
+          <div className="flex flex-wrap gap-2 xl:col-span-2 xl:self-end">
             <Button type="submit" variant="primary" icon={editingId ? Save : Plus}>
               {editingId ? '保存修改' : '新增记录'}
             </Button>
@@ -157,7 +187,7 @@ export default function XianyuPanel({
 
       <Card title="今日运营记录" eyebrow="Today">
         <div className="overflow-x-auto">
-          <table className="min-w-[920px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2 pr-3">店铺</th>

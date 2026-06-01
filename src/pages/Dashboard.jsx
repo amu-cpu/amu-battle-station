@@ -109,12 +109,12 @@ export default function Dashboard({
   }
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-5">
+      <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm font-semibold text-slate-500">{formatDateLabel(selectedDate)}</p>
         <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">今日作战台</h1>
+            <h1 className="text-3xl font-black text-slate-950">今日作战台</h1>
             <p className="mt-2 text-sm text-slate-600">一打开就知道今天有没有像个人一样干活。</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +141,7 @@ export default function Dashboard({
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <ScoreCard label="今日作战分" value={scores.battleScore} detail="任务 45% / 身体 30% / 运营 25%" tone="green" />
         <ScoreCard label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${effectiveTasks.length} 个动作`} />
         <ScoreCard label="运营分" value={scores.operationScore} detail={`收入 ${formatCurrency(operationSummary.income)}`} tone="cyan" />
@@ -149,9 +149,9 @@ export default function Dashboard({
         <ScoreCard label="风险提醒" value={riskAlerts.length} detail={riskAlerts.length ? '需要处理' : '暂时干净'} tone={riskAlerts.length ? 'yellow' : 'green'} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+      <div className="grid gap-5 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
         <Card title="今日任务" eyebrow="Actions">
-          <form onSubmit={addTask} className="mb-4 grid gap-2 md:grid-cols-[160px_1fr_auto]">
+          <form onSubmit={addTask} className="mb-4 grid gap-3 md:grid-cols-[160px_1fr_auto]">
             <Input
               as="select"
               label="类别"
@@ -170,7 +170,7 @@ export default function Dashboard({
             </Button>
           </form>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             {groupTasks(effectiveTasks).map(({ category, tasks: categoryTasks }) => (
               <div key={category} className="rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
@@ -247,7 +247,7 @@ export default function Dashboard({
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
         <Card title="今日运营概览" eyebrow="Ops">
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="发布" value={operationSummary.publishCount} />
@@ -263,7 +263,7 @@ export default function Dashboard({
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="体重" value={bodyRecord.weight || '未记录'} />
             <StatItem label="睡眠" value={bodyRecord.sleepHours ? `${bodyRecord.sleepHours} 小时` : '未记录'} />
-            <StatItem label="运动" value={bodyRecord.exercise === '未记录' ? '未记录' : bodyRecord.exercise} />
+            <StatItem label="运动" value={bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录'} />
             <StatItem label="身体分" value={`${scores.bodyScore}/100`} />
           </div>
         </Card>

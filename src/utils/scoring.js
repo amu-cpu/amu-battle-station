@@ -82,7 +82,7 @@ export function calculateBodyScore(record) {
 
   let score = 0
   if (toNumber(record.sleepHours) >= 7) score += 30
-  if (record.exercise && record.exercise !== '未记录') score += 30
+  if (isFilled(record.exercise) && record.exercise !== '未记录') score += 30
   if (String(record.weight || '').trim()) score += 10
   if (String(record.lunch || record.dinner || record.snack || '').trim()) score += 20
   if (String(record.note || '').trim()) score += 10
@@ -103,7 +103,7 @@ export function hasBodyRecord(record) {
       isFilled(record.wakeTime) ||
       isFilled(record.sleepHours) ||
       hasBodyDiet(record) ||
-      (record.exercise && record.exercise !== '未记录') ||
+      (isFilled(record.exercise) && record.exercise !== '未记录') ||
       isFilled(record.note),
   )
 }
@@ -163,7 +163,7 @@ export function applyTaskAutomation(tasks, { operationSummary, bodyRecord, revie
         autoDone = isFilled(bodyRecord?.sleepHours)
         break
       case '完成俯卧撑、步行、跑步机或羽毛球中的任意一种':
-        autoDone = Boolean(bodyRecord?.exercise && bodyRecord.exercise !== '未记录')
+        autoDone = Boolean(isFilled(bodyRecord?.exercise) && bodyRecord.exercise !== '未记录')
         break
       case '记录今天饮食':
         autoDone = hasBodyDiet(bodyRecord)

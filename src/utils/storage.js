@@ -151,7 +151,7 @@ export function normalizeAppState(state, fallbackAssets = []) {
     reviewRecords: toDateMap(source.reviewRecords ?? source.reviewByDate),
     settings: {
       ...settings,
-      privacyMode: Boolean(settings.privacyMode ?? source.privacyMode),
+      privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
     },
   }
 }
@@ -181,7 +181,7 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
   const bodyRecords = readStorage(STORAGE_KEYS.bodyByDate, undefined)
   const financeAssets = readStorage(STORAGE_KEYS.assets, undefined)
   const reviewRecords = readStorage(STORAGE_KEYS.reviewByDate, undefined)
-  const privacyMode = readStorage(STORAGE_KEYS.privacyMode, false)
+  const privacyMode = readStorage(STORAGE_KEYS.privacyMode, true)
 
   return normalizeAppState(
     {
@@ -217,8 +217,7 @@ export function hasMeaningfulAppState(state, fallbackAssets = []) {
       hasOperationRecords(normalized.xianyuRecords) ||
       hasMeaningfulBodyRecords(normalized.bodyRecords) ||
       hasMeaningfulReviewRecords(normalized.reviewRecords) ||
-      !assetsMatchFallback(normalized.financeAssets, fallbackAssets) ||
-      normalized.settings.privacyMode,
+      !assetsMatchFallback(normalized.financeAssets, fallbackAssets),
   )
 }
 

@@ -53,7 +53,7 @@ function App() {
   const [bodyByDate, setBodyByDate] = useStoredState(STORAGE_KEYS.bodyByDate, () => migrateDateMap(STORAGE_KEYS.bodyRecords))
   const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets))
   const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords))
-  const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, false)
+  const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, true)
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState('local')
@@ -334,6 +334,7 @@ function App() {
   const operationDiagnosis = getOperationDiagnosis(operationSummary)
   const financeStatus = getFinanceStatusSummary(financeAssets)
   const scores = { taskScore, operationScore, bodyScore, battleScore }
+  const showCloudSync = cloudSyncAvailable
 
   function updateTasksForSelectedDate(updater) {
     setTasksByDate((current) => {
@@ -404,20 +405,22 @@ function App() {
   return (
     <Layout activePage={activePage} onNavigate={setActivePage}>
       <div className="space-y-4">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]">
-          <AuthPanel
-            configured={cloudSyncAvailable}
-            session={session}
-            loading={authLoading}
-            onSignIn={handleSignIn}
-            onSignOut={handleSignOut}
-            conflict={syncConflict}
-            onUseCloud={handleUseCloudState}
-            onUseLocal={handleUseLocalState}
-            onSkipMerge={handleSkipMerge}
-          />
-          <SyncStatus status={syncStatus} message={syncMessage} />
-        </div>
+        {showCloudSync ? (
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(240px,320px)]">
+            <AuthPanel
+              configured={cloudSyncAvailable}
+              session={session}
+              loading={authLoading}
+              onSignIn={handleSignIn}
+              onSignOut={handleSignOut}
+              conflict={syncConflict}
+              onUseCloud={handleUseCloudState}
+              onUseLocal={handleUseLocalState}
+              onSkipMerge={handleSkipMerge}
+            />
+            <SyncStatus status={syncStatus} message={syncMessage} />
+          </div>
+        ) : null}
         {pages[activePage]}
       </div>
     </Layout>

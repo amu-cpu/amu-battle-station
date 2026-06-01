@@ -87,12 +87,12 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
   }
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-5">
+      <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-sm font-semibold text-slate-500">每日复盘台 · {formatDateLabel(selectedDate)}</p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">复盘不写废话</h1>
+            <h1 className="text-3xl font-black text-slate-950">复盘不写废话</h1>
             <p className="mt-2 text-sm text-slate-600">只写能改变明天的东西，别把忙碌当进步。</p>
           </div>
           <Badge tone={complete ? 'success' : 'warning'}>{complete ? '今日已完成' : '今日未完成'}</Badge>
@@ -119,7 +119,7 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
           </Badge>
         }
       >
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-4 xl:grid-cols-2">
           <Input label="日期" type="date" value={record.date} disabled />
           <Input as="select" label="今天有没有破戒或摆烂" options={DISCIPLINE_OPTIONS} value={record.discipline} onChange={(event) => saveField('discipline', event.target.value)} />
           <Input
@@ -128,6 +128,7 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
             value={record.valuableThing}
             onChange={(event) => saveField('valuableThing', event.target.value)}
             placeholder="写具体动作，不写感受空话。"
+            inputClassName="min-h-40"
           />
           <Input
             as="textarea"
@@ -135,12 +136,14 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
             value={record.stupidThing}
             onChange={(event) => saveField('stupidThing', event.target.value)}
             placeholder="哪里浪费时间、上头或逃避了？"
+            inputClassName="min-h-40"
           />
           <Input
             as="textarea"
             label="今天为什么没完成"
             value={record.unfinishedReason}
             onChange={(event) => saveField('unfinishedReason', event.target.value)}
+            inputClassName="min-h-40"
           />
           <Input
             as="textarea"
@@ -148,14 +151,16 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
             value={record.tomorrowTop3}
             onChange={(event) => saveField('tomorrowTop3', event.target.value)}
             placeholder="一行一件，必须能执行。"
+            inputClassName="min-h-40"
           />
           <Input
             as="textarea"
             label="今天最大的风险是什么"
-            className="lg:col-span-2"
+            className="xl:col-span-2"
             value={record.biggestRisk}
             onChange={(event) => saveField('biggestRisk', event.target.value)}
             placeholder="钱、身体、情绪、拖延，哪个最危险？"
+            inputClassName="min-h-36"
           />
         </div>
       </Card>

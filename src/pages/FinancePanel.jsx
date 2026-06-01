@@ -72,12 +72,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
   }
 
   return (
-    <div className="space-y-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="space-y-5">
+      <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-500">资金雷达台</p>
-            <h1 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">只做记录和提醒，不给投资建议</h1>
+            <h1 className="mt-2 text-3xl font-black text-slate-950">只做记录和提醒，不给投资建议</h1>
             <p className="mt-2 text-sm text-slate-600">根据你手动填写的金额和上下限，判断仓位是否越界。</p>
           </div>
           <Button
@@ -87,12 +87,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             onClick={() => setPrivacyMode((value) => !value)}
             className="sm:mt-1"
           >
-            隐私模式{privacyMode ? '已开启' : '已关闭'}
+            {privacyMode ? '显示金额' : '隐藏金额'}
           </Button>
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <ScoreCard label="总资产" value={moneyText(total)} detail="手动记录合计" tone="green" />
         <ScoreCard label="资产数量" value={assets.length} detail="可新增、编辑、删除" />
         <ScoreCard label="偏高资产" value={highCount} detail="超过上限要控制" tone={highCount ? 'red' : 'green'} />
@@ -100,8 +100,8 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
       </div>
 
       <Card title={editingId ? '编辑资产' : '新增资产'} eyebrow="Record">
-        <form onSubmit={saveAsset} className="grid gap-3 lg:grid-cols-6">
-          <Input label="资产名称" value={form.name} onChange={(event) => updateField('name', event.target.value)} placeholder="例如：现金池" className="lg:col-span-2" />
+        <form onSubmit={saveAsset} className="grid gap-3 xl:grid-cols-8">
+          <Input label="资产名称" value={form.name} onChange={(event) => updateField('name', event.target.value)} placeholder="例如：现金池" className="xl:col-span-2" />
           <Input
             label="当前金额"
             type={privacyMode ? 'password' : 'number'}
@@ -113,8 +113,8 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
           <Input label="目标占比" type="number" min="0" step="0.1" value={form.target} onChange={(event) => updateField('target', event.target.value)} />
           <Input label="下限" type="number" min="0" step="0.1" value={form.lower} onChange={(event) => updateField('lower', event.target.value)} />
           <Input label="上限" type="number" min="0" step="0.1" value={form.upper} onChange={(event) => updateField('upper', event.target.value)} />
-          <Input label="备注" value={form.note} onChange={(event) => updateField('note', event.target.value)} className="lg:col-span-4" />
-          <div className="flex flex-wrap gap-2 lg:col-span-2 lg:self-end">
+          <Input label="备注" value={form.note} onChange={(event) => updateField('note', event.target.value)} className="xl:col-span-6" />
+          <div className="flex flex-wrap gap-2 xl:col-span-2 xl:self-end">
             <Button type="submit" variant="primary" icon={editingId ? Save : Plus}>
               {editingId ? '保存修改' : '新增资产'}
             </Button>
@@ -143,7 +143,7 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[980px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="py-2 pr-3">资产</th>
