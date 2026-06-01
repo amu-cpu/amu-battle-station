@@ -17,7 +17,7 @@ const DEFAULT_TASKS = [
   ['复盘', '记录是否破戒、摆烂、熬夜或拖延'],
 ]
 
-export const DEFAULT_SHOPS = ['店铺A', '店铺B']
+export const DEFAULT_SHOPS = ['商业计划书阿木「安卓」', '阿木可研计划书顾问「苹果」']
 
 export const EXERCISE_OPTIONS = ['俯卧撑', '步行', '跑步机', '羽毛球', '骑车', '拉伸', '其他']
 

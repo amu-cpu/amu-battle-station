@@ -1,5 +1,5 @@
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Badge from '../components/Badge'
 import Button from '../components/Button'
 import Card from '../components/Card'
@@ -11,7 +11,7 @@ import { formatCurrency } from '../utils/scoring'
 
 const emptyForm = {
   date: '',
-  shopName: '店铺A',
+  shopName: DEFAULT_SHOPS[0],
   accountWarmed: false,
   publishCount: '',
   exposure: '',
@@ -54,7 +54,6 @@ function recordToForm(record) {
 export default function XianyuPanel({
   selectedDate,
   records,
-  allRecords = [],
   setRecords,
   summary,
   operationScore,
@@ -63,10 +62,6 @@ export default function XianyuPanel({
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState({ ...emptyForm, date: selectedDate })
   const todayRecords = records
-  const shopOptions = useMemo(
-    () => [...new Set([...DEFAULT_SHOPS, ...allRecords.map((record) => record.shopName).filter(Boolean)])],
-    [allRecords],
-  )
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -84,7 +79,7 @@ export default function XianyuPanel({
     event.preventDefault()
     const payload = {
       ...form,
-      shopName: form.shopName.trim() || '未命名店铺',
+      shopName: form.shopName.trim() || DEFAULT_SHOPS[0],
       date: selectedDate,
     }
     numberFields.forEach((field) => {
@@ -135,21 +130,7 @@ export default function XianyuPanel({
       <Card title={editingId ? '编辑运营记录' : '新增运营记录'} eyebrow="Record">
         <form onSubmit={saveRecord} className="grid gap-3 xl:grid-cols-8">
           <Input label="日期" type="date" value={selectedDate} disabled />
-          <label className="block xl:col-span-2">
-            <span className="mb-1.5 block text-sm font-semibold text-slate-700">店铺名称</span>
-            <input
-              className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-              list="shop-options"
-              value={form.shopName}
-              onChange={(event) => updateField('shopName', event.target.value)}
-              placeholder="店铺A / 店铺B / 自定义"
-            />
-            <datalist id="shop-options">
-              {shopOptions.map((shop) => (
-                <option key={shop} value={shop} />
-              ))}
-            </datalist>
-          </label>
+          <Input as="select" label="发布账号" options={DEFAULT_SHOPS} value={form.shopName} onChange={(event) => updateField('shopName', event.target.value)} className="xl:col-span-2" />
           <Input label="发布数量" type="text" inputMode="decimal" value={form.publishCount} onChange={(event) => updateField('publishCount', event.target.value)} placeholder="0" />
           <Input label="曝光" type="text" inputMode="decimal" value={form.exposure} onChange={(event) => updateField('exposure', event.target.value)} placeholder="0" />
           <Input label="咨询" type="text" inputMode="decimal" value={form.inquiries} onChange={(event) => updateField('inquiries', event.target.value)} placeholder="0" />
@@ -190,7 +171,7 @@ export default function XianyuPanel({
           <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-slate-200 text-slate-500">
-                <th className="py-2 pr-3">店铺</th>
+                <th className="py-2 pr-3">发布账号</th>
                 <th className="py-2 pr-3">养号</th>
                 <th className="py-2 pr-3">发布</th>
                 <th className="py-2 pr-3">曝光</th>
