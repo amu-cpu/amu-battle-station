@@ -5,7 +5,7 @@ import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
-import { LEARNING_TOPIC_OPTIONS, TASK_CATEGORIES } from '../utils/defaults'
+import { TASK_CATEGORIES } from '../utils/defaults'
 import { formatDateLabel, shiftDateKey } from '../utils/date'
 import { formatCurrency, getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
@@ -16,21 +16,44 @@ function groupTasks(tasks) {
   }))
 }
 
-const PRIMARY_LEARNING_TITLES = new Set(['学习 Codex 或代写运营知识 15 分钟', '学习或沉淀 15 分钟'])
-const SECONDARY_LEARNING_TITLES = new Set(['整理 1 条可复用的代写方法或案例', '整理 1 条可复用方法、案例或提示词'])
+function getLearningTaskTitle(topic) {
+  const trimmedTopic = topic.trim()
+  return trimmedTopic ? `学习 / 沉淀：${trimmedTopic}` : '今日学习 / 沉淀待定'
+}
 
-function getTaskDisplayTitle(task, learningTopic) {
-  const topic = learningTopic.trim()
+const DEFAULT_LEARNING_TITLES = new Set([
+  '学习 Codex 或代写运营知识 15 分钟',
+  '整理 1 条可复用的代写方法或案例',
+  '学习或沉淀 15 分钟',
+  '整理 1 条可复用方法、案例或提示词',
+  '今日学习 / 沉淀待定',
+])
 
-  if (task.category === '学习' && PRIMARY_LEARNING_TITLES.has(task.title)) {
-    return topic ? `学习：${topic} 15 分钟` : '学习或沉淀 15 分钟'
-  }
+function buildDisplayTasks(tasks, learningRecord) {
+  const learningTasks = tasks.filter((task) => task.category === '学习')
+  const nonLearningTasks = tasks.filter((task) => task.category !== '学习')
+  const defaultLearningTasks = learningTasks.filter((task) => DEFAULT_LEARNING_TITLES.has(task.title))
+  const customLearningTasks = learningTasks.filter((task) => !DEFAULT_LEARNING_TITLES.has(task.title))
+  const hasLearningRecord = Boolean(learningRecord.topic || learningRecord.output || Object.prototype.hasOwnProperty.call(learningRecord, 'completed'))
 
-  if (task.category === '学习' && SECONDARY_LEARNING_TITLES.has(task.title)) {
-    return '整理 1 条可复用方法、案例或提示词'
-  }
+  if (!defaultLearningTasks.length && !hasLearningRecord) return [...nonLearningTasks, ...customLearningTasks]
 
-  return task.title
+  const hasStoredCompletion = Object.prototype.hasOwnProperty.call(learningRecord, 'completed')
+  const learningDone = hasStoredCompletion ? Boolean(learningRecord.completed) : defaultLearningTasks.some((task) => task.done)
+
+  return [
+    ...nonLearningTasks,
+    ...customLearningTasks,
+    {
+      id: 'learning-closure',
+      category: '学习',
+      title: getLearningTaskTitle(learningRecord.topic || ''),
+      output: learningRecord.output || '',
+      done: learningDone,
+      autoManaged: false,
+      isLearningRecord: true,
+    },
+  ]
 }
 
 function StatItem({ label, value }) {
@@ -56,15 +79,21 @@ export default function Dashboard({
   privacyMode,
   reviewRecord,
   hasReviewRecord,
-  learningTopic,
-  setLearningTopic,
+  learningRecord,
+  setLearningRecord,
 }) {
   const [newTask, setNewTask] = useState({ category: '赚钱', title: '' })
-  const completedCount = effectiveTasks.filter((task) => task.done).length
-  const completionRate = effectiveTasks.length ? Math.round((completedCount / effectiveTasks.length) * 100) : 0
+  const learningTasks = effectiveTasks.filter((task) => task.category === '学习')
+  const defaultLearningTasks = learningTasks.filter((task) => DEFAULT_LEARNING_TITLES.has(task.title))
+  const hasStoredLearningCompletion = Object.prototype.hasOwnProperty.call(learningRecord, 'completed')
+  const learningCompleted = hasStoredLearningCompletion ? Boolean(learningRecord.completed) : defaultLearningTasks.some((task) => task.done)
+  const displayTasks = useMemo(() => buildDisplayTasks(effectiveTasks, learningRecord), [effectiveTasks, learningRecord])
+  const completedCount = displayTasks.filter((task) => task.done).length
+  const completionRate = displayTasks.length ? Math.round((completedCount / displayTasks.length) * 100) : 0
 
   const riskAlerts = useMemo(() => {
     const alerts = []
+    const learningTopic = learningRecord.topic || ''
 
     if (!hasBodyRecord) {
       alerts.push({ tone: 'warning', text: '今天还没有身体记录，别让身体无限电池。' })
@@ -80,7 +109,7 @@ export default function Dashboard({
     }
 
     if (!learningTopic.trim()) {
-      alerts.push({ tone: 'warning', text: '今天还没设置学习主题，学习动作容易变成空转。' })
+      alerts.push({ tone: 'warning', text: '今天学习动作还没定，长期能力会掉队。' })
     }
 
     if (operationSummary.recordCount === 0) {
@@ -91,18 +120,27 @@ export default function Dashboard({
       alerts.push({ tone: 'warning', text: '有资产低于下限，先观察，不要乱补。' })
     }
 
-    if (effectiveTasks.some((task) => !task.done)) {
+    if (displayTasks.some((task) => !task.done)) {
       alerts.push({ tone: 'warning', text: '还有任务没完成，先收口今天的动作。' })
     }
 
     return alerts.slice(0, 5)
-  }, [bodyRecord, effectiveTasks, financeStatus, hasBodyRecord, learningTopic, operationSummary])
+  }, [bodyRecord, displayTasks, financeStatus, hasBodyRecord, learningRecord.topic, operationSummary])
 
   function toggleTask(targetTask) {
+    if (targetTask.isLearningRecord) {
+      setLearningRecord((current) => ({ ...current, completed: !targetTask.done }))
+      return
+    }
+
     if (targetTask.autoManaged) return
     setTasks((current) =>
       current.map((task) => (task.id === targetTask.id ? { ...task, done: !task.done } : task)),
     )
+  }
+
+  function updateLearningField(field, value) {
+    setLearningRecord((current) => ({ ...current, [field]: value }))
   }
 
   function deleteTask(taskId) {
@@ -162,7 +200,7 @@ export default function Dashboard({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <ScoreCard label="今日作战分" value={scores.battleScore} detail="任务 45% / 身体 30% / 运营 25%" tone="green" />
-        <ScoreCard label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${effectiveTasks.length} 个动作`} />
+        <ScoreCard label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${displayTasks.length} 个动作`} />
         <ScoreCard label="运营分" value={scores.operationScore} detail={`收入 ${formatCurrency(operationSummary.income)}`} tone="cyan" />
         <ScoreCard label="身体分" value={scores.bodyScore} detail={`睡眠 ${bodyRecord?.sleepHours || 0} 小时`} />
         <ScoreCard label="风险提醒" value={riskAlerts.length} detail={riskAlerts.length ? '需要处理' : '暂时干净'} tone={riskAlerts.length ? 'yellow' : 'green'} />
@@ -172,23 +210,28 @@ export default function Dashboard({
         <Card title="今日任务" eyebrow="Actions">
           <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <Input
-              label="今日学习主题"
-              value={learningTopic}
-              onChange={(event) => setLearningTopic(event.target.value)}
+              label="今日学习 / 沉淀主题"
+              value={learningRecord.topic || ''}
+              onChange={(event) => updateLearningField('topic', event.target.value)}
               placeholder="例如：Codex 提效、闲鱼选题、成交话术、可研案例、图片提示词、客户沟通"
+              className="mb-3"
             />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {LEARNING_TOPIC_OPTIONS.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setLearningTopic(option)}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <Input
+              label="今日学习产出，可选"
+              value={learningRecord.output || ''}
+              onChange={(event) => updateLearningField('output', event.target.value)}
+              placeholder="例如：整理 1 条提示词、复盘 1 个案例、看完 1 篇文章、跑通 1 个流程"
+              className="mb-3"
+            />
+            <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
+              <input
+                type="checkbox"
+                checked={learningCompleted}
+                onChange={(event) => updateLearningField('completed', event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-slate-900"
+              />
+              完成学习闭环
+            </label>
           </div>
 
           <form onSubmit={addTask} className="mb-4 grid gap-3 md:grid-cols-[160px_1fr_auto]">
@@ -211,7 +254,7 @@ export default function Dashboard({
           </form>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            {groupTasks(effectiveTasks).map(({ category, tasks: categoryTasks }) => (
+            {groupTasks(displayTasks).map(({ category, tasks: categoryTasks }) => (
               <div key={category} className="rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
                   <h3 className="text-sm font-black text-slate-900">{category}</h3>
@@ -238,22 +281,25 @@ export default function Dashboard({
                       </button>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm font-semibold ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                          {getTaskDisplayTitle(task, learningTopic)}
+                          {task.title}
                         </p>
+                        {task.output ? <p className="mt-1 text-xs font-semibold text-slate-500">产出：{task.output}</p> : null}
                         {task.autoManaged ? (
                           <Badge tone={task.autoDone ? 'success' : 'neutral'} className="mt-1">
                             {task.autoDone ? '自动完成' : '等数据'}
                           </Badge>
                         ) : null}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => deleteTask(task.id)}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
-                        aria-label="删除任务"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
+                      {task.isLearningRecord ? null : (
+                        <button
+                          type="button"
+                          onClick={() => deleteTask(task.id)}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                          aria-label="删除任务"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

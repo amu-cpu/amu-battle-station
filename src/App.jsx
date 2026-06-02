@@ -25,6 +25,7 @@ import {
   migrateBodyRecordsMap,
   migrateDateMap,
   migrateFinanceAssets,
+  migrateLearningRecordsMap,
   migrateLocalStorageToAppState,
   migrateOpsByDate,
   migrateReviewRecordsMap,
@@ -59,6 +60,11 @@ function App() {
   const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords), migrateReviewRecordsMap)
   const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, true)
   const [learningTopicsByDate, setLearningTopicsByDate] = useStoredState(STORAGE_KEYS.learningTopicsByDate, {})
+  const [learningRecordsByDate, setLearningRecordsByDate] = useStoredState(
+    STORAGE_KEYS.learningRecordsByDate,
+    () => learningTopicsByDate,
+    migrateLearningRecordsMap,
+  )
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState('local')
@@ -79,8 +85,9 @@ function App() {
         reviewByDate,
         privacyMode,
         learningTopicsByDate,
+        learningRecordsByDate,
       }),
-    [bodyByDate, financeAssets, learningTopicsByDate, opsByDate, privacyMode, reviewByDate, tasksByDate],
+    [bodyByDate, financeAssets, learningRecordsByDate, learningTopicsByDate, opsByDate, privacyMode, reviewByDate, tasksByDate],
   )
 
   const applyAppState = useCallback(
@@ -94,8 +101,9 @@ function App() {
       setReviewByDate(normalized.reviewRecords)
       setPrivacyMode(normalized.settings.privacyMode)
       setLearningTopicsByDate(normalized.learningTopics)
+      setLearningRecordsByDate(normalized.learningRecords)
     },
-    [setBodyByDate, setFinanceAssets, setLearningTopicsByDate, setOpsByDate, setPrivacyMode, setReviewByDate, setTasksByDate],
+    [setBodyByDate, setFinanceAssets, setLearningRecordsByDate, setLearningTopicsByDate, setOpsByDate, setPrivacyMode, setReviewByDate, setTasksByDate],
   )
 
   const runInitialCloudSync = useCallback(async () => {
@@ -333,7 +341,11 @@ function App() {
   const bodyRecord = { ...defaultBodyRecord, date: selectedDate, ...(bodyByDate[selectedDate] || {}) }
   const reviewRecord = { ...defaultReviewRecord, date: selectedDate, ...(reviewByDate[selectedDate] || {}) }
   const operationSummary = calculateOperationSummary(selectedOpsRecords)
-  const learningTopic = learningTopicsByDate[selectedDate] || ''
+  const learningRecord = {
+    topic: learningTopicsByDate[selectedDate] || '',
+    output: '',
+    ...(learningRecordsByDate[selectedDate] || {}),
+  }
   const operationScore = calculateOperationScore(operationSummary)
   const bodyScore = calculateBodyScore(bodyByDate[selectedDate] ? bodyRecord : null)
   const effectiveTasks = applyTaskAutomation(tasks, { operationSummary, bodyRecord, reviewRecord })
@@ -362,8 +374,17 @@ function App() {
     })
   }
 
-  function updateLearningTopicForSelectedDate(topic) {
-    setLearningTopicsByDate((current) => ({ ...current, [selectedDate]: topic }))
+  function updateLearningRecordForSelectedDate(updater) {
+    setLearningRecordsByDate((current) => {
+      const currentRecord = {
+        topic: learningTopicsByDate[selectedDate] || '',
+        output: '',
+        ...(current[selectedDate] || {}),
+      }
+      const nextRecord = typeof updater === 'function' ? updater(currentRecord) : updater
+
+      return { ...current, [selectedDate]: nextRecord }
+    })
   }
 
   const pages = {
@@ -382,8 +403,8 @@ function App() {
         privacyMode={privacyMode}
         reviewRecord={reviewRecord}
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
-        learningTopic={learningTopic}
-        setLearningTopic={updateLearningTopicForSelectedDate}
+        learningRecord={learningRecord}
+        setLearningRecord={updateLearningRecordForSelectedDate}
       />
     ),
     xianyu: (

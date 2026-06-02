@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   assets: 'amu-battle-station:assets',
   privacyMode: 'amu-battle-station:privacy-mode',
   learningTopicsByDate: 'amu-battle-station:learning-topics-by-date',
+  learningRecordsByDate: 'amu-battle-station:learning-records-by-date',
   xianyuRecords: 'amu-battle-station:xianyu-records',
   bodyRecords: 'amu-battle-station:body-records',
   financeAssets: 'amu-battle-station:finance-assets',
@@ -32,6 +33,7 @@ const DEFAULT_TASK_TITLES = new Set([
   '整理 1 条可复用的代写方法或案例',
   '学习或沉淀 15 分钟',
   '整理 1 条可复用方法、案例或提示词',
+  '今日学习 / 沉淀待定',
   '记录体重',
   '记录睡眠',
   '完成俯卧撑、步行、跑步机或羽毛球中的任意一种',
@@ -170,6 +172,40 @@ function hasMeaningfulLearningTopics(learningTopics) {
   return Object.values(toDateMap(learningTopics)).some(hasStoredValue)
 }
 
+export function migrateLearningRecord(record) {
+  if (typeof record === 'string') {
+    return { topic: record, output: '' }
+  }
+
+  if (!isPlainObject(record)) {
+    return { topic: '', output: '' }
+  }
+
+  const next = { ...record }
+  fillIfEmpty(next, 'topic', firstStoredValue(record, ['topic', 'learningTopic', '今日学习 / 沉淀主题', '今日学习主题']))
+  fillIfEmpty(next, 'output', firstStoredValue(record, ['output', 'learningOutput', '今日学习产出', '今日学习产出，可选']))
+
+  return {
+    ...next,
+    topic: String(next.topic ?? ''),
+    output: String(next.output ?? ''),
+    ...(next.completed === undefined ? {} : { completed: Boolean(next.completed) }),
+  }
+}
+
+export function migrateLearningRecordsMap(recordsByDate) {
+  return Object.fromEntries(
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateLearningRecord(record)]),
+  )
+}
+
+function hasMeaningfulLearningRecords(learningRecords) {
+  return Object.values(toDateMap(learningRecords)).some((record) => {
+    const normalized = migrateLearningRecord(record)
+    return hasStoredValue(normalized.topic) || hasStoredValue(normalized.output) || Boolean(normalized.completed)
+  })
+}
+
 function hasMeaningfulReviewRecords(reviewByDate) {
   return Object.values(reviewByDate).some((record) =>
     Boolean(
@@ -196,6 +232,7 @@ export function normalizeAppState(state, fallbackAssets = []) {
     financeAssets: migrateFinanceAssets(toAssetList(source.financeAssets ?? source.assets, fallbackAssets)),
     reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
     learningTopics: toDateMap(source.learningTopics ?? source.learningTopicsByDate),
+    learningRecords: migrateLearningRecordsMap(source.learningRecords ?? source.learningRecordsByDate ?? source.learningTopics ?? source.learningTopicsByDate),
     settings: {
       ...settings,
       privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
@@ -314,6 +351,7 @@ export function createAppStateSnapshot({
   reviewByDate,
   privacyMode,
   learningTopicsByDate,
+  learningRecordsByDate,
 }) {
   return normalizeAppState({
     updatedAt: new Date().toISOString(),
@@ -323,6 +361,7 @@ export function createAppStateSnapshot({
     financeAssets,
     reviewRecords: reviewByDate,
     learningTopics: learningTopicsByDate,
+    learningRecords: learningRecordsByDate,
     settings: { privacyMode },
   })
 }
@@ -335,6 +374,7 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
   const reviewRecords = readStorage(STORAGE_KEYS.reviewByDate, undefined)
   const privacyMode = readStorage(STORAGE_KEYS.privacyMode, true)
   const learningTopics = readStorage(STORAGE_KEYS.learningTopicsByDate, {})
+  const learningRecords = readStorage(STORAGE_KEYS.learningRecordsByDate, undefined)
 
   return normalizeAppState(
     {
@@ -344,6 +384,7 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
       financeAssets: toAssetList(financeAssets ?? migrateAssets(fallbackAssets), fallbackAssets),
       reviewRecords: toDateMap(reviewRecords ?? migrateDateMap(STORAGE_KEYS.reviewRecords)),
       learningTopics: toDateMap(learningTopics),
+      learningRecords: toDateMap(learningRecords ?? learningTopics),
       settings: { privacyMode },
     },
     fallbackAssets,
@@ -360,6 +401,7 @@ export function writeAppStateToLocalStorage(state, fallbackAssets = []) {
   writeStorage(STORAGE_KEYS.reviewByDate, normalized.reviewRecords)
   writeStorage(STORAGE_KEYS.privacyMode, normalized.settings.privacyMode)
   writeStorage(STORAGE_KEYS.learningTopicsByDate, normalized.learningTopics)
+  writeStorage(STORAGE_KEYS.learningRecordsByDate, normalized.learningRecords)
 
   return normalized
 }
@@ -373,6 +415,7 @@ export function hasMeaningfulAppState(state, fallbackAssets = []) {
       hasMeaningfulBodyRecords(normalized.bodyRecords) ||
       hasMeaningfulReviewRecords(normalized.reviewRecords) ||
       hasMeaningfulLearningTopics(normalized.learningTopics) ||
+      hasMeaningfulLearningRecords(normalized.learningRecords) ||
       !assetsMatchFallback(normalized.financeAssets, fallbackAssets),
   )
 }
