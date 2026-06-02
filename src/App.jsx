@@ -58,6 +58,7 @@ function App() {
   const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets), migrateFinanceAssets)
   const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords), migrateReviewRecordsMap)
   const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, true)
+  const [learningTopicsByDate, setLearningTopicsByDate] = useStoredState(STORAGE_KEYS.learningTopicsByDate, {})
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState('local')
@@ -77,8 +78,9 @@ function App() {
         financeAssets,
         reviewByDate,
         privacyMode,
+        learningTopicsByDate,
       }),
-    [bodyByDate, financeAssets, opsByDate, privacyMode, reviewByDate, tasksByDate],
+    [bodyByDate, financeAssets, learningTopicsByDate, opsByDate, privacyMode, reviewByDate, tasksByDate],
   )
 
   const applyAppState = useCallback(
@@ -91,8 +93,9 @@ function App() {
       setFinanceAssets(normalized.financeAssets)
       setReviewByDate(normalized.reviewRecords)
       setPrivacyMode(normalized.settings.privacyMode)
+      setLearningTopicsByDate(normalized.learningTopics)
     },
-    [setBodyByDate, setFinanceAssets, setOpsByDate, setPrivacyMode, setReviewByDate, setTasksByDate],
+    [setBodyByDate, setFinanceAssets, setLearningTopicsByDate, setOpsByDate, setPrivacyMode, setReviewByDate, setTasksByDate],
   )
 
   const runInitialCloudSync = useCallback(async () => {
@@ -330,6 +333,7 @@ function App() {
   const bodyRecord = { ...defaultBodyRecord, date: selectedDate, ...(bodyByDate[selectedDate] || {}) }
   const reviewRecord = { ...defaultReviewRecord, date: selectedDate, ...(reviewByDate[selectedDate] || {}) }
   const operationSummary = calculateOperationSummary(selectedOpsRecords)
+  const learningTopic = learningTopicsByDate[selectedDate] || ''
   const operationScore = calculateOperationScore(operationSummary)
   const bodyScore = calculateBodyScore(bodyByDate[selectedDate] ? bodyRecord : null)
   const effectiveTasks = applyTaskAutomation(tasks, { operationSummary, bodyRecord, reviewRecord })
@@ -358,6 +362,10 @@ function App() {
     })
   }
 
+  function updateLearningTopicForSelectedDate(topic) {
+    setLearningTopicsByDate((current) => ({ ...current, [selectedDate]: topic }))
+  }
+
   const pages = {
     dashboard: (
       <Dashboard
@@ -374,6 +382,8 @@ function App() {
         privacyMode={privacyMode}
         reviewRecord={reviewRecord}
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
+        learningTopic={learningTopic}
+        setLearningTopic={updateLearningTopicForSelectedDate}
       />
     ),
     xianyu: (

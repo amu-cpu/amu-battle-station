@@ -5,15 +5,32 @@ import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
-import { TASK_CATEGORIES } from '../utils/defaults'
+import { LEARNING_TOPIC_OPTIONS, TASK_CATEGORIES } from '../utils/defaults'
 import { formatDateLabel, shiftDateKey } from '../utils/date'
-import { formatCurrency } from '../utils/scoring'
+import { formatCurrency, getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
 function groupTasks(tasks) {
   return TASK_CATEGORIES.map((category) => ({
     category,
     tasks: tasks.filter((task) => task.category === category),
   }))
+}
+
+const PRIMARY_LEARNING_TITLES = new Set(['学习 Codex 或代写运营知识 15 分钟', '学习或沉淀 15 分钟'])
+const SECONDARY_LEARNING_TITLES = new Set(['整理 1 条可复用的代写方法或案例', '整理 1 条可复用方法、案例或提示词'])
+
+function getTaskDisplayTitle(task, learningTopic) {
+  const topic = learningTopic.trim()
+
+  if (task.category === '学习' && PRIMARY_LEARNING_TITLES.has(task.title)) {
+    return topic ? `学习：${topic} 15 分钟` : '学习或沉淀 15 分钟'
+  }
+
+  if (task.category === '学习' && SECONDARY_LEARNING_TITLES.has(task.title)) {
+    return '整理 1 条可复用方法、案例或提示词'
+  }
+
+  return task.title
 }
 
 function StatItem({ label, value }) {
@@ -39,6 +56,8 @@ export default function Dashboard({
   privacyMode,
   reviewRecord,
   hasReviewRecord,
+  learningTopic,
+  setLearningTopic,
 }) {
   const [newTask, setNewTask] = useState({ category: '赚钱', title: '' })
   const completedCount = effectiveTasks.filter((task) => task.done).length
@@ -47,37 +66,37 @@ export default function Dashboard({
   const riskAlerts = useMemo(() => {
     const alerts = []
 
+    if (!hasBodyRecord) {
+      alerts.push({ tone: 'warning', text: '今天还没有身体记录，别让身体无限电池。' })
+    }
+
+    const relapseStatus = getRelapseStatus(bodyRecord)
+    if (relapseStatus === 'unrecorded') {
+      alerts.push({ tone: 'warning', text: '今天还没记录是否破戒。' })
+    }
+
+    if (relapseStatus === 'yes') {
+      alerts.push({ tone: 'danger', text: '今天已破戒，晚上复盘原因。' })
+    }
+
+    if (!learningTopic.trim()) {
+      alerts.push({ tone: 'warning', text: '今天还没设置学习主题，学习动作容易变成空转。' })
+    }
+
     if (operationSummary.recordCount === 0) {
       alerts.push({ tone: 'danger', text: '今天还没有运营记录，现金流动作断了。' })
-    } else if (operationSummary.publishCount === 0) {
-      alerts.push({ tone: 'danger', text: '今天还没发布商品，现金流动作断了。' })
-    }
-
-    if (!hasBodyRecord) {
-      alerts.push({ tone: 'warning', text: '今天还没填写身体记录，别把身体当无限电池。' })
-    } else if (Number(bodyRecord?.sleepHours) > 0 && Number(bodyRecord.sleepHours) < 6) {
-      alerts.push({ tone: 'warning', text: '睡眠少于 6 小时，身体账户正在透支。' })
-    }
-
-    if (!hasReviewRecord) {
-      alerts.push({ tone: 'warning', text: '今天还没写复盘，晚上会继续糊成一团。' })
-    }
-
-    const learningTasks = effectiveTasks.filter((task) => task.category === '学习')
-    if (learningTasks.length && learningTasks.some((task) => !task.done)) {
-      alerts.push({ tone: 'warning', text: '今天学习动作还没完成，长期能力会掉队。' })
-    }
-
-    if (financeStatus.highCount > 0) {
-      alerts.push({ tone: 'danger', text: '有资产超过上限，今天不要情绪化操作。' })
     }
 
     if (financeStatus.lowCount > 0) {
       alerts.push({ tone: 'warning', text: '有资产低于下限，先观察，不要乱补。' })
     }
 
-    return alerts
-  }, [bodyRecord, effectiveTasks, financeStatus, hasBodyRecord, hasReviewRecord, operationSummary])
+    if (effectiveTasks.some((task) => !task.done)) {
+      alerts.push({ tone: 'warning', text: '还有任务没完成，先收口今天的动作。' })
+    }
+
+    return alerts.slice(0, 5)
+  }, [bodyRecord, effectiveTasks, financeStatus, hasBodyRecord, learningTopic, operationSummary])
 
   function toggleTask(targetTask) {
     if (targetTask.autoManaged) return
@@ -151,6 +170,27 @@ export default function Dashboard({
 
       <div className="grid gap-5 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
         <Card title="今日任务" eyebrow="Actions">
+          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <Input
+              label="今日学习主题"
+              value={learningTopic}
+              onChange={(event) => setLearningTopic(event.target.value)}
+              placeholder="例如：Codex 提效、闲鱼选题、成交话术、可研案例、图片提示词、客户沟通"
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {LEARNING_TOPIC_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setLearningTopic(option)}
+                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <form onSubmit={addTask} className="mb-4 grid gap-3 md:grid-cols-[160px_1fr_auto]">
             <Input
               as="select"
@@ -198,7 +238,7 @@ export default function Dashboard({
                       </button>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm font-semibold ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
-                          {task.title}
+                          {getTaskDisplayTitle(task, learningTopic)}
                         </p>
                         {task.autoManaged ? (
                           <Badge tone={task.autoDone ? 'success' : 'neutral'} className="mt-1">
@@ -264,6 +304,7 @@ export default function Dashboard({
             <StatItem label="体重" value={bodyRecord.weight || '未记录'} />
             <StatItem label="睡眠" value={bodyRecord.sleepHours ? `${bodyRecord.sleepHours} 小时` : '未记录'} />
             <StatItem label="运动" value={bodyRecord.exerciseText || (bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录')} />
+            <StatItem label="破戒" value={getRelapseLabel(bodyRecord)} />
             <StatItem label="身体分" value={`${scores.bodyScore}/100`} />
           </div>
         </Card>

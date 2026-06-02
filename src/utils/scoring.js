@@ -15,6 +15,20 @@ function getExerciseValue(record) {
   return record?.exerciseText || (record?.exercise !== '未记录' ? record?.exercise : '')
 }
 
+export function getRelapseStatus(record) {
+  const text = String(record?.relapseStatus ?? record?.是否破戒 ?? '').trim()
+  if (['yes', '是', '有', '破戒'].includes(text)) return 'yes'
+  if (['no', '否', '没有', '无'].includes(text)) return 'no'
+  return 'unrecorded'
+}
+
+export function getRelapseLabel(record) {
+  const status = getRelapseStatus(record)
+  if (status === 'yes') return '是'
+  if (status === 'no') return '否'
+  return '未记录'
+}
+
 export function calculateTaskScore(tasks) {
   if (!tasks.length) return 0
   const doneCount = tasks.filter((task) => task.done).length
@@ -88,8 +102,9 @@ export function calculateBodyScore(record) {
   if (toNumber(record.sleepHours) >= 7) score += 30
   if (isFilled(getExerciseValue(record))) score += 30
   if (String(record.weight || '').trim()) score += 10
-  if (String(record.lunch || record.dinner || record.snack || '').trim()) score += 20
+  if (hasBodyDiet(record)) score += 20
   if (String(record.note || '').trim()) score += 10
+  if (getRelapseStatus(record) === 'no') score += 10
 
   return clampScore(score)
 }
@@ -118,6 +133,9 @@ export function hasBodyRecord(record) {
       isFilled(record.sleepHours) ||
       hasBodyDiet(record) ||
       isFilled(getExerciseValue(record)) ||
+      getRelapseStatus(record) !== 'unrecorded' ||
+      (Array.isArray(record.relapseTypes) && record.relapseTypes.length > 0) ||
+      isFilled(record.relapseNote) ||
       isFilled(record.note),
   )
 }
@@ -185,7 +203,7 @@ export function applyTaskAutomation(tasks, { operationSummary, bodyRecord, revie
         autoDone = hasReviewCore(reviewRecord)
         break
       case '记录是否破戒、摆烂、熬夜或拖延':
-        autoDone = Boolean(reviewRecord?.discipline && reviewRecord.discipline !== '未记录')
+        autoDone = Boolean((reviewRecord?.discipline && reviewRecord.discipline !== '未记录') || getRelapseStatus(bodyRecord) !== 'unrecorded')
         break
       default:
         autoManaged = false

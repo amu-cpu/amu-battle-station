@@ -1,11 +1,12 @@
-import { Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Download, Eye, EyeOff, Plus, Trash2 } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import * as XLSX from 'xlsx'
 import Badge from '../components/Badge'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
-import { calculateFinanceTotal, formatCurrency, formatPercent, getAssetStatus } from '../utils/scoring'
+import { calculateFinanceTotal, formatCurrency, formatPercent, getAssetStatus, toNumber } from '../utils/scoring'
 
 const emptyAsset = {
   name: '',
@@ -18,25 +19,58 @@ const emptyAsset = {
 
 const numberFields = ['amount', 'target', 'lower', 'upper']
 
+function localDateKey() {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseCellValue(field, value) {
+  if (field === 'name') {
+    const name = String(value).trim()
+    return name ? { ok: true, value: name } : { ok: false }
+  }
+
+  if (numberFields.includes(field)) {
+    const nextValue = value === '' ? 0 : Number(value)
+    return { ok: true, value: Number.isFinite(nextValue) ? nextValue : 0 }
+  }
+
+  return { ok: true, value }
+}
+
 export default function FinancePanel({ assets, setAssets, privacyMode, setPrivacyMode }) {
-  const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyAsset)
   const [emotionVisible, setEmotionVisible] = useState(false)
+  const [editingCell, setEditingCell] = useState(null)
+  const [saveNotice, setSaveNotice] = useState('')
+  const noticeTimerRef = useRef(null)
+  const cancelBlurRef = useRef(false)
   const total = calculateFinanceTotal(assets)
-  const rows = useMemo(() => assets.map((asset) => ({ ...asset, ...getAssetStatus(asset, total) })), [assets, total])
+  const rows = useMemo(
+    () => assets.map((asset, index) => ({ ...asset, __index: index, ...getAssetStatus(asset, total) })),
+    [assets, total],
+  )
   const highCount = rows.filter((row) => row.status === '偏高').length
   const lowCount = rows.filter((row) => row.status === '偏低').length
   const moneyText = (value) => (privacyMode ? '****' : formatCurrency(value))
 
+  function showSavedNotice() {
+    setSaveNotice('已保存')
+    if (noticeTimerRef.current) window.clearTimeout(noticeTimerRef.current)
+    noticeTimerRef.current = window.setTimeout(() => setSaveNotice(''), 1400)
+  }
+
   function updateField(field, value) {
     setForm((current) => ({
       ...current,
-      [field]: numberFields.includes(field) ? Number(value) : value,
+      [field]: numberFields.includes(field) ? Number(value || 0) : value,
     }))
   }
 
   function resetForm() {
-    setEditingId(null)
     setForm(emptyAsset)
   }
 
@@ -46,29 +80,142 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
     if (!name) return
 
     const payload = { ...form, name }
-    if (editingId) {
-      setAssets((current) => current.map((asset) => (asset.id === editingId ? { ...asset, ...payload, id: editingId } : asset)))
-    } else {
-      setAssets((current) => [...current, { ...payload, id: `asset-${Date.now()}` }])
-    }
-
+    setAssets((current) => [...current, { ...payload, id: `asset-${Date.now()}` }])
     resetForm()
   }
 
-  function editAsset(asset) {
-    setEditingId(asset.id)
-    setForm({
-      name: asset.name,
-      amount: asset.amount,
-      target: asset.target,
-      lower: asset.lower,
-      upper: asset.upper,
-      note: asset.note,
+  function deleteAsset(assetIndex) {
+    setAssets((current) => current.filter((_, index) => index !== assetIndex))
+  }
+
+  function startCellEdit(row, field) {
+    if (field === 'amount' && privacyMode) return
+    setEditingCell({
+      assetIndex: row.__index,
+      field,
+      value: String(row[field] ?? ''),
     })
   }
 
-  function deleteAsset(assetId) {
-    setAssets((current) => current.filter((asset) => asset.id !== assetId))
+  function cancelCellEdit() {
+    cancelBlurRef.current = true
+    setEditingCell(null)
+  }
+
+  function commitCellEdit() {
+    if (!editingCell) return
+
+    const parsed = parseCellValue(editingCell.field, editingCell.value)
+    if (!parsed.ok) {
+      setEditingCell(null)
+      return
+    }
+
+    setAssets((current) =>
+      current.map((asset, index) =>
+        index === editingCell.assetIndex
+          ? {
+              ...asset,
+              [editingCell.field]: parsed.value,
+            }
+          : asset,
+      ),
+    )
+    setEditingCell(null)
+    showSavedNotice()
+  }
+
+  function handleCellBlur() {
+    if (cancelBlurRef.current) {
+      cancelBlurRef.current = false
+      return
+    }
+
+    commitCellEdit()
+  }
+
+  function exportFinanceExcel() {
+    const confirmed = window.confirm('导出 Excel 将包含全部资产真实金额，是否继续？')
+    if (!confirmed) return
+
+    const detailRows = rows.map((row) => ({
+      资产名称: row.name || '',
+      当前金额: toNumber(row.amount),
+      当前占比: formatPercent(row.ratio),
+      目标占比: formatPercent(row.target),
+      下限: formatPercent(row.lower),
+      上限: formatPercent(row.upper),
+      状态: row.status,
+      操作提示: row.action,
+      备注: row.note || '',
+    }))
+
+    const summaryRows = [
+      {
+        导出日期: localDateKey(),
+        总资产: total,
+        资产数量: assets.length,
+        正常资产数量: rows.filter((row) => row.status === '正常').length,
+        偏高资产数量: highCount,
+        偏低资产数量: lowCount,
+        隐私模式状态: privacyMode ? '已开启' : '已关闭',
+        说明: '本文件只从当前浏览器本地数据导出，不会上传到外部服务。',
+      },
+    ]
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), '资金状态明细')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), '资金汇总')
+    XLSX.writeFile(workbook, `amu-finance-radar-${localDateKey()}.xlsx`)
+  }
+
+  function renderEditableCell(row, field, displayValue, extraClassName = '') {
+    const isEditing = editingCell?.assetIndex === row.__index && editingCell.field === field
+    const disabled = field === 'amount' && privacyMode
+
+    if (isEditing) {
+      return (
+        <td className={`py-2 pr-3 ${extraClassName}`}>
+          <input
+            autoFocus
+            type={numberFields.includes(field) ? 'number' : 'text'}
+            min={numberFields.includes(field) ? '0' : undefined}
+            step={numberFields.includes(field) ? '0.1' : undefined}
+            value={editingCell.value}
+            onChange={(event) => setEditingCell((current) => ({ ...current, value: event.target.value }))}
+            onBlur={handleCellBlur}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitCellEdit()
+              }
+
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                cancelCellEdit()
+              }
+            }}
+            className="min-h-9 w-full min-w-24 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-950 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+          />
+        </td>
+      )
+    }
+
+    return (
+      <td className={`py-2 pr-3 ${extraClassName}`}>
+        <button
+          type="button"
+          onClick={() => startCellEdit(row, field)}
+          disabled={disabled}
+          className={`w-full rounded-md px-2 py-2 text-left transition ${
+            disabled ? 'cursor-default text-slate-700' : 'hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200'
+          }`}
+          title={disabled ? '隐私模式下金额不可编辑，先点击显示金额' : '点击编辑'}
+        >
+          {displayValue}
+        </button>
+      </td>
+    )
   }
 
   return (
@@ -80,26 +227,36 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             <h1 className="mt-2 text-3xl font-black text-slate-950">只做记录和提醒，不给投资建议</h1>
             <p className="mt-2 text-sm text-slate-600">根据你手动填写的金额和上下限，判断仓位是否越界。</p>
           </div>
-          <Button
-            type="button"
-            variant={privacyMode ? 'primary' : 'secondary'}
-            icon={privacyMode ? EyeOff : Eye}
-            onClick={() => setPrivacyMode((value) => !value)}
-            className="sm:mt-1"
-          >
-            {privacyMode ? '显示金额' : '隐藏金额'}
-          </Button>
+          <div className="flex flex-wrap gap-2 sm:mt-1 sm:justify-end">
+            <Button type="button" icon={Download} onClick={exportFinanceExcel}>
+              导出完整资金状态 Excel
+            </Button>
+            <Button
+              type="button"
+              variant={privacyMode ? 'primary' : 'secondary'}
+              icon={privacyMode ? EyeOff : Eye}
+              onClick={() => setPrivacyMode((value) => !value)}
+            >
+              {privacyMode ? '显示金额' : '隐藏金额'}
+            </Button>
+          </div>
         </div>
       </header>
 
+      {saveNotice ? (
+        <div className="fixed right-6 top-6 z-50 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800 shadow-sm">
+          {saveNotice}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <ScoreCard label="总资产" value={moneyText(total)} detail="手动记录合计" tone="green" />
-        <ScoreCard label="资产数量" value={assets.length} detail="可新增、编辑、删除" />
+        <ScoreCard label="资产数量" value={assets.length} detail="可新增、点击表格编辑" />
         <ScoreCard label="偏高资产" value={highCount} detail="超过上限要控制" tone={highCount ? 'red' : 'green'} />
         <ScoreCard label="偏低资产" value={lowCount} detail="低于下限仅提醒关注" tone={lowCount ? 'yellow' : 'green'} />
       </div>
 
-      <Card title={editingId ? '编辑资产' : '新增资产'} eyebrow="Record">
+      <Card title="新增资产" eyebrow="Record">
         <form onSubmit={saveAsset} className="grid gap-3 xl:grid-cols-8">
           <Input label="资产名称" value={form.name} onChange={(event) => updateField('name', event.target.value)} placeholder="例如：现金池" className="xl:col-span-2" />
           <Input
@@ -115,14 +272,9 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
           <Input label="上限" type="number" min="0" step="0.1" value={form.upper} onChange={(event) => updateField('upper', event.target.value)} />
           <Input label="备注" value={form.note} onChange={(event) => updateField('note', event.target.value)} className="xl:col-span-6" />
           <div className="flex flex-wrap gap-2 xl:col-span-2 xl:self-end">
-            <Button type="submit" variant="primary" icon={editingId ? Save : Plus}>
-              {editingId ? '保存修改' : '新增资产'}
+            <Button type="submit" variant="primary" icon={Plus}>
+              新增资产
             </Button>
-            {editingId ? (
-              <Button type="button" icon={X} onClick={resetForm}>
-                取消
-              </Button>
-            ) : null}
           </div>
         </form>
       </Card>
@@ -150,7 +302,8 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
                 <th className="py-2 pr-3">金额</th>
                 <th className="py-2 pr-3">当前占比</th>
                 <th className="py-2 pr-3">目标</th>
-                <th className="py-2 pr-3">区间</th>
+                <th className="py-2 pr-3">下限</th>
+                <th className="py-2 pr-3">上限</th>
                 <th className="py-2 pr-3">状态</th>
                 <th className="py-2 pr-3">操作提示</th>
                 <th className="py-2 pr-3">备注</th>
@@ -159,40 +312,29 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
-                <tr key={row.id} className="align-top">
-                  <td className="py-3 pr-3 font-semibold text-slate-900">{row.name}</td>
-                  <td className="py-3 pr-3">{moneyText(row.amount)}</td>
+                <tr key={row.id || `${row.name}-${row.__index}`} className="align-top hover:bg-slate-50/50">
+                  {renderEditableCell(row, 'name', row.name || '-', 'font-semibold text-slate-900')}
+                  {renderEditableCell(row, 'amount', privacyMode ? '****' : formatCurrency(row.amount))}
                   <td className="py-3 pr-3">{formatPercent(row.ratio)}</td>
-                  <td className="py-3 pr-3">{formatPercent(row.target)}</td>
-                  <td className="py-3 pr-3">
-                    {formatPercent(row.lower)} - {formatPercent(row.upper)}
-                  </td>
+                  {renderEditableCell(row, 'target', formatPercent(row.target))}
+                  {renderEditableCell(row, 'lower', formatPercent(row.lower))}
+                  {renderEditableCell(row, 'upper', formatPercent(row.upper))}
                   <td className="py-3 pr-3">
                     <Badge tone={row.tone}>{row.status}</Badge>
                   </td>
                   <td className="py-3 pr-3">
                     <Badge tone={row.tone}>{row.action}</Badge>
                   </td>
-                  <td className="max-w-72 py-3 pr-3 text-slate-600">{row.note || '-'}</td>
+                  {renderEditableCell(row, 'note', row.note || '-', 'max-w-72 text-slate-600')}
                   <td className="py-3 pr-3">
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => editAsset(row)}
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"
-                        aria-label="编辑资产"
-                      >
-                        <Pencil className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteAsset(row.id)}
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-rose-50 hover:text-rose-700"
-                        aria-label="删除资产"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteAsset(row.__index)}
+                      className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                      aria-label="删除资产"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </td>
                 </tr>
               ))}

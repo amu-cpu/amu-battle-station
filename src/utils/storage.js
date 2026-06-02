@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   reviewByDate: 'amu-battle-station:review-by-date',
   assets: 'amu-battle-station:assets',
   privacyMode: 'amu-battle-station:privacy-mode',
+  learningTopicsByDate: 'amu-battle-station:learning-topics-by-date',
   xianyuRecords: 'amu-battle-station:xianyu-records',
   bodyRecords: 'amu-battle-station:body-records',
   financeAssets: 'amu-battle-station:finance-assets',
@@ -20,7 +21,7 @@ export function dailyTasksKey(dateKey) {
 }
 
 const LEGACY_TASKS_PREFIX = 'amu-battle-station:tasks:'
-export const APP_STATE_SCHEMA_VERSION = 1
+export const APP_STATE_SCHEMA_VERSION = 2
 
 const DEFAULT_TASK_TITLES = new Set([
   '养号 10 分钟',
@@ -29,6 +30,8 @@ const DEFAULT_TASK_TITLES = new Set([
   '记录今日运营数据',
   '学习 Codex 或代写运营知识 15 分钟',
   '整理 1 条可复用的代写方法或案例',
+  '学习或沉淀 15 分钟',
+  '整理 1 条可复用方法、案例或提示词',
   '记录体重',
   '记录睡眠',
   '完成俯卧撑、步行、跑步机或羽毛球中的任意一种',
@@ -77,6 +80,22 @@ function fillIfEmpty(target, field, value) {
   if (!hasStoredValue(target[field]) && hasStoredValue(value)) {
     target[field] = value
   }
+}
+
+function normalizeRelapseStatus(value) {
+  const text = String(value ?? '').trim()
+  if (['yes', '是', '有', '破戒'].includes(text)) return 'yes'
+  if (['no', '否', '没有', '无'].includes(text)) return 'no'
+  return 'unrecorded'
+}
+
+function normalizeRelapseTypes(value) {
+  if (Array.isArray(value)) return value.filter(hasStoredValue)
+  if (!hasStoredValue(value)) return []
+  return String(value)
+    .split(/[,+，、/]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 }
 
 function toDateMap(value) {
@@ -132,10 +151,23 @@ function hasMeaningfulBodyRecords(bodyByDate) {
         record?.lunch ||
         record?.dinner ||
         record?.snack ||
+        record?.afternoonSnack ||
+        record?.eveningSnack ||
+        record?.legacySnack ||
+        record?.extraMeal ||
+        record?.加餐 ||
+        record?.exerciseText ||
+        record?.relapseNote ||
+        normalizeRelapseTypes(record?.relapseTypes).length ||
+        normalizeRelapseStatus(record?.relapseStatus) !== 'unrecorded' ||
         record?.note ||
         (record?.exercise && record.exercise !== '未记录'),
     ),
   )
+}
+
+function hasMeaningfulLearningTopics(learningTopics) {
+  return Object.values(toDateMap(learningTopics)).some(hasStoredValue)
 }
 
 function hasMeaningfulReviewRecords(reviewByDate) {
@@ -163,6 +195,7 @@ export function normalizeAppState(state, fallbackAssets = []) {
     bodyRecords: migrateBodyRecordsMap(toDateMap(source.bodyRecords ?? source.bodyByDate)),
     financeAssets: migrateFinanceAssets(toAssetList(source.financeAssets ?? source.assets, fallbackAssets)),
     reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
+    learningTopics: toDateMap(source.learningTopics ?? source.learningTopicsByDate),
     settings: {
       ...settings,
       privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
@@ -193,11 +226,20 @@ export function migrateBodyRecord(record) {
     next.afternoonSnack = legacySnack
   }
 
+  next.afternoonSnack = next.afternoonSnack ?? ''
+  next.eveningSnack = next.eveningSnack ?? ''
+  next.legacySnack = next.legacySnack ?? ''
+
   fillIfEmpty(next, 'exerciseText', firstStoredValue(record, ['exerciseText', '运动记录']))
 
   if (!hasStoredValue(next.exerciseText) && hasStoredValue(record.exercise) && record.exercise !== '未记录') {
     next.exerciseText = record.exercise
   }
+
+  next.relapseStatus = normalizeRelapseStatus(firstStoredValue(next, ['relapseStatus', '是否破戒']))
+  next.relapseTypes = normalizeRelapseTypes(firstStoredValue(next, ['relapseTypes', '破戒类型']))
+  fillIfEmpty(next, 'relapseNote', firstStoredValue(record, ['relapseNote', '破戒备注']))
+  next.relapseNote = next.relapseNote ?? ''
 
   return {
     schemaVersion: APP_STATE_SCHEMA_VERSION,
@@ -271,6 +313,7 @@ export function createAppStateSnapshot({
   financeAssets,
   reviewByDate,
   privacyMode,
+  learningTopicsByDate,
 }) {
   return normalizeAppState({
     updatedAt: new Date().toISOString(),
@@ -279,6 +322,7 @@ export function createAppStateSnapshot({
     bodyRecords: bodyByDate,
     financeAssets,
     reviewRecords: reviewByDate,
+    learningTopics: learningTopicsByDate,
     settings: { privacyMode },
   })
 }
@@ -290,6 +334,7 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
   const financeAssets = readStorage(STORAGE_KEYS.assets, undefined)
   const reviewRecords = readStorage(STORAGE_KEYS.reviewByDate, undefined)
   const privacyMode = readStorage(STORAGE_KEYS.privacyMode, true)
+  const learningTopics = readStorage(STORAGE_KEYS.learningTopicsByDate, {})
 
   return normalizeAppState(
     {
@@ -298,6 +343,7 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
       bodyRecords: toDateMap(bodyRecords ?? migrateDateMap(STORAGE_KEYS.bodyRecords)),
       financeAssets: toAssetList(financeAssets ?? migrateAssets(fallbackAssets), fallbackAssets),
       reviewRecords: toDateMap(reviewRecords ?? migrateDateMap(STORAGE_KEYS.reviewRecords)),
+      learningTopics: toDateMap(learningTopics),
       settings: { privacyMode },
     },
     fallbackAssets,
@@ -313,6 +359,7 @@ export function writeAppStateToLocalStorage(state, fallbackAssets = []) {
   writeStorage(STORAGE_KEYS.assets, normalized.financeAssets)
   writeStorage(STORAGE_KEYS.reviewByDate, normalized.reviewRecords)
   writeStorage(STORAGE_KEYS.privacyMode, normalized.settings.privacyMode)
+  writeStorage(STORAGE_KEYS.learningTopicsByDate, normalized.learningTopics)
 
   return normalized
 }
@@ -325,6 +372,7 @@ export function hasMeaningfulAppState(state, fallbackAssets = []) {
       hasOperationRecords(normalized.xianyuRecords) ||
       hasMeaningfulBodyRecords(normalized.bodyRecords) ||
       hasMeaningfulReviewRecords(normalized.reviewRecords) ||
+      hasMeaningfulLearningTopics(normalized.learningTopics) ||
       !assetsMatchFallback(normalized.financeAssets, fallbackAssets),
   )
 }

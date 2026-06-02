@@ -3,8 +3,9 @@ import Badge from '../components/Badge'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
-import { defaultBodyRecord, EXERCISE_OPTIONS } from '../utils/defaults'
+import { defaultBodyRecord, EXERCISE_OPTIONS, RELAPSE_STATUS_OPTIONS, RELAPSE_TYPE_OPTIONS } from '../utils/defaults'
 import { calculateSleepHours, formatDateLabel, sortByDateDesc } from '../utils/date'
+import { getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
 function displayExercise(value) {
   return value && value !== '未记录' ? value : ''
@@ -23,9 +24,20 @@ function getSnackSummary(record) {
   return snacks.length ? snacks.join(' / ') : getLegacySnack(record)
 }
 
+function getRelapseSummary(record) {
+  const status = getRelapseStatus(record)
+  if (status !== 'yes') return getRelapseLabel(record)
+
+  const types = Array.isArray(record?.relapseTypes) ? record.relapseTypes.filter(Boolean) : []
+  const note = record?.relapseNote ? `：${record.relapseNote}` : ''
+  return `是${types.length ? `（${types.join('、')}）` : ''}${note}`
+}
+
 export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, bodyScore }) {
   const record = { ...defaultBodyRecord, date: selectedDate, ...(bodyRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(bodyRecords)).slice(0, 10)
+  const relapseStatus = getRelapseStatus(record)
+  const relapseTypes = Array.isArray(record.relapseTypes) ? record.relapseTypes : []
 
   function saveField(field, value) {
     setBodyRecords((current) => {
@@ -44,6 +56,13 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
     saveField('exerciseText', currentExercise ? `${currentExercise} + ${text}` : text)
   }
 
+  function toggleRelapseType(type) {
+    const nextTypes = relapseTypes.includes(type)
+      ? relapseTypes.filter((item) => item !== type)
+      : [...relapseTypes, type]
+    saveField('relapseTypes', nextTypes)
+  }
+
   return (
     <div className="space-y-5">
       <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
@@ -52,11 +71,12 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
         <p className="mt-2 text-sm text-slate-600">记录睡眠、饮食、运动和备注，防止硬扛到报废。</p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 运动 / 饮食 / 备注" tone="green" />
         <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
         <ScoreCard label="运动" value={getExerciseText(record) ? '已记' : '未记'} detail="完成运动加 30 分" tone={getExerciseText(record) ? 'green' : 'yellow'} />
         <ScoreCard label="体重" value={record.weight || '未记'} detail="记录体重加 10 分" />
+        <ScoreCard label="破戒" value={getRelapseLabel(record)} detail="记录否加 10 分" tone={relapseStatus === 'yes' ? 'red' : relapseStatus === 'no' ? 'green' : 'yellow'} />
       </div>
 
       <Card
@@ -119,6 +139,62 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
             placeholder="疲劳、疼痛、熬夜、精神状态，写清楚。"
             inputClassName="min-h-32"
           />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 xl:col-span-12">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">今日是否破戒</p>
+                <p className="mt-1 text-xs text-slate-500">只记录事实，不用在这里审判自己。</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {RELAPSE_STATUS_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => saveField('relapseStatus', option.value)}
+                    className={`rounded-md border px-4 py-2 text-sm font-bold transition ${
+                      relapseStatus === option.value
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {relapseStatus === 'yes' ? (
+              <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
+                <div>
+                  <p className="mb-2 text-sm font-semibold text-slate-700">破戒类型</p>
+                  <div className="flex flex-wrap gap-2">
+                    {RELAPSE_TYPE_OPTIONS.map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleRelapseType(type)}
+                        className={`rounded-md border px-3 py-1.5 text-xs font-bold transition ${
+                          relapseTypes.includes(type)
+                            ? 'border-rose-200 bg-rose-50 text-rose-700'
+                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Input
+                  as="textarea"
+                  label="破戒备注"
+                  value={record.relapseNote || ''}
+                  onChange={(event) => saveField('relapseNote', event.target.value)}
+                  placeholder="简单写原因、触发点或补救动作"
+                  inputClassName="min-h-24"
+                />
+              </div>
+            ) : null}
+          </div>
         </div>
       </Card>
 
@@ -131,6 +207,7 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
                 <th className="py-2 pr-3">体重</th>
                 <th className="py-2 pr-3">睡眠</th>
                 <th className="py-2 pr-3">运动</th>
+                <th className="py-2 pr-3">破戒</th>
                 <th className="py-2 pr-3">饮食</th>
                 <th className="py-2 pr-3">备注</th>
               </tr>
@@ -143,13 +220,14 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
                     <td className="py-3 pr-3">{item.weight || '-'}</td>
                     <td className="py-3 pr-3">{item.sleepHours || '-'} 小时</td>
                     <td className="max-w-72 py-3 pr-3 text-slate-700">{getExerciseText(item) || '-'}</td>
+                    <td className="max-w-60 py-3 pr-3 text-slate-700">{getRelapseSummary(item)}</td>
                     <td className="max-w-64 py-3 pr-3 text-slate-600">{[item.lunch, item.dinner, getSnackSummary(item)].filter(Boolean).join(' / ') || '-'}</td>
                     <td className="max-w-64 py-3 pr-3 text-slate-600">{item.note || '-'}</td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td className="py-6 text-slate-500" colSpan="6">
+                  <td className="py-6 text-slate-500" colSpan="7">
                     还没有身体记录，先填今天。
                   </td>
                 </tr>
