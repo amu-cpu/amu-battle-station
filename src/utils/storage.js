@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  normalizeDailyReminderState,
+  normalizeDailyWakeState,
+  normalizeReminderRules,
+  normalizeWakeSettings,
+} from './reminders'
 
 export const STORAGE_PREFIX = 'amu-battle-station:'
 
@@ -11,6 +17,10 @@ export const STORAGE_KEYS = {
   privacyMode: 'amu-battle-station:privacy-mode',
   learningTopicsByDate: 'amu-battle-station:learning-topics-by-date',
   learningRecordsByDate: 'amu-battle-station:learning-records-by-date',
+  reminderRules: 'amu-battle-station:reminder-rules',
+  dailyReminderState: 'amu-battle-station:daily-reminder-state',
+  wakeSettings: 'amu-battle-station:wake-settings',
+  dailyWakeState: 'amu-battle-station:daily-wake-state',
   xianyuRecords: 'amu-battle-station:xianyu-records',
   bodyRecords: 'amu-battle-station:body-records',
   financeAssets: 'amu-battle-station:finance-assets',
@@ -206,6 +216,15 @@ function hasMeaningfulLearningRecords(learningRecords) {
   })
 }
 
+function hasMeaningfulReminderData(state) {
+  return Boolean(
+    JSON.stringify(state.reminderRules) !== JSON.stringify(normalizeReminderRules(undefined)) ||
+      Object.keys(normalizeDailyReminderState(state.dailyReminderState)).length ||
+      JSON.stringify(state.wakeSettings) !== JSON.stringify(normalizeWakeSettings(undefined)) ||
+      Object.keys(normalizeDailyWakeState(state.dailyWakeState)).length,
+  )
+}
+
 function hasMeaningfulReviewRecords(reviewByDate) {
   return Object.values(reviewByDate).some((record) =>
     Boolean(
@@ -233,6 +252,10 @@ export function normalizeAppState(state, fallbackAssets = []) {
     reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
     learningTopics: toDateMap(source.learningTopics ?? source.learningTopicsByDate),
     learningRecords: migrateLearningRecordsMap(source.learningRecords ?? source.learningRecordsByDate ?? source.learningTopics ?? source.learningTopicsByDate),
+    reminderRules: normalizeReminderRules(source.reminderRules),
+    dailyReminderState: normalizeDailyReminderState(source.dailyReminderState),
+    wakeSettings: normalizeWakeSettings(source.wakeSettings),
+    dailyWakeState: normalizeDailyWakeState(source.dailyWakeState),
     settings: {
       ...settings,
       privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
@@ -352,6 +375,10 @@ export function createAppStateSnapshot({
   privacyMode,
   learningTopicsByDate,
   learningRecordsByDate,
+  reminderRules,
+  dailyReminderState,
+  wakeSettings,
+  dailyWakeState,
 }) {
   return normalizeAppState({
     updatedAt: new Date().toISOString(),
@@ -362,6 +389,10 @@ export function createAppStateSnapshot({
     reviewRecords: reviewByDate,
     learningTopics: learningTopicsByDate,
     learningRecords: learningRecordsByDate,
+    reminderRules,
+    dailyReminderState,
+    wakeSettings,
+    dailyWakeState,
     settings: { privacyMode },
   })
 }
@@ -375,6 +406,10 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
   const privacyMode = readStorage(STORAGE_KEYS.privacyMode, true)
   const learningTopics = readStorage(STORAGE_KEYS.learningTopicsByDate, {})
   const learningRecords = readStorage(STORAGE_KEYS.learningRecordsByDate, undefined)
+  const reminderRules = readStorage(STORAGE_KEYS.reminderRules, undefined)
+  const dailyReminderState = readStorage(STORAGE_KEYS.dailyReminderState, {})
+  const wakeSettings = readStorage(STORAGE_KEYS.wakeSettings, undefined)
+  const dailyWakeState = readStorage(STORAGE_KEYS.dailyWakeState, {})
 
   return normalizeAppState(
     {
@@ -385,6 +420,10 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
       reviewRecords: toDateMap(reviewRecords ?? migrateDateMap(STORAGE_KEYS.reviewRecords)),
       learningTopics: toDateMap(learningTopics),
       learningRecords: toDateMap(learningRecords ?? learningTopics),
+      reminderRules,
+      dailyReminderState,
+      wakeSettings,
+      dailyWakeState,
       settings: { privacyMode },
     },
     fallbackAssets,
@@ -402,6 +441,10 @@ export function writeAppStateToLocalStorage(state, fallbackAssets = []) {
   writeStorage(STORAGE_KEYS.privacyMode, normalized.settings.privacyMode)
   writeStorage(STORAGE_KEYS.learningTopicsByDate, normalized.learningTopics)
   writeStorage(STORAGE_KEYS.learningRecordsByDate, normalized.learningRecords)
+  writeStorage(STORAGE_KEYS.reminderRules, normalized.reminderRules)
+  writeStorage(STORAGE_KEYS.dailyReminderState, normalized.dailyReminderState)
+  writeStorage(STORAGE_KEYS.wakeSettings, normalized.wakeSettings)
+  writeStorage(STORAGE_KEYS.dailyWakeState, normalized.dailyWakeState)
 
   return normalized
 }
@@ -416,6 +459,7 @@ export function hasMeaningfulAppState(state, fallbackAssets = []) {
       hasMeaningfulReviewRecords(normalized.reviewRecords) ||
       hasMeaningfulLearningTopics(normalized.learningTopics) ||
       hasMeaningfulLearningRecords(normalized.learningRecords) ||
+      hasMeaningfulReminderData(normalized) ||
       !assetsMatchFallback(normalized.financeAssets, fallbackAssets),
   )
 }

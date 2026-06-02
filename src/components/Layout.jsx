@@ -1,4 +1,4 @@
-import { Activity, HeartPulse, NotebookPen, Radar, Store } from 'lucide-react'
+import { Activity, BellRing, HeartPulse, NotebookPen, Radar, Store } from 'lucide-react'
 
 const navItems = [
   { id: 'dashboard', label: '今日', icon: Activity },
@@ -6,6 +6,7 @@ const navItems = [
   { id: 'body', label: '身体', icon: HeartPulse },
   { id: 'finance', label: '资金', icon: Radar },
   { id: 'review', label: '复盘', icon: NotebookPen },
+  { id: 'reminders', label: '督促', icon: BellRing },
 ]
 
 export default function Layout({ activePage, onNavigate, children }) {
@@ -53,7 +54,7 @@ export default function Layout({ activePage, onNavigate, children }) {
       </main>
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 py-2 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
           {navItems.map((item) => {
             const Icon = item.icon
             const active = activePage === item.id

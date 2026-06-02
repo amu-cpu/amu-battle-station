@@ -14,10 +14,11 @@ import {
 import BodyPanel from './pages/BodyPanel'
 import Dashboard from './pages/Dashboard'
 import FinancePanel from './pages/FinancePanel'
+import ReminderPanel from './pages/ReminderPanel'
 import ReviewPanel from './pages/ReviewPanel'
 import XianyuPanel from './pages/XianyuPanel'
-import { createDefaultTasks, defaultBodyRecord, defaultFinanceAssets, defaultReviewRecord } from './utils/defaults'
-import { getTodayKey } from './utils/date'
+import { createDefaultTasks, defaultBodyRecord, defaultFinanceAssets, defaultReminderRules, defaultReviewRecord, defaultWakeSettings } from './utils/defaults'
+import { calculateSleepHours, getTodayKey } from './utils/date'
 import {
   createAppStateSnapshot,
   hasMeaningfulAppState,
@@ -37,6 +38,19 @@ import {
   writeAppStateToLocalStorage,
 } from './utils/storage'
 import {
+  buildReminderSummary,
+  calculateWakeSummary,
+  getCurrentTimeString,
+  getReminderStatus,
+  normalizeDailyReminderItem,
+  normalizeDailyReminderState,
+  normalizeDailyWakeState,
+  normalizeReminderRules,
+  normalizeWakeSettings,
+  REMINDER_MESSAGES,
+  timeToMinutes,
+} from './utils/reminders'
+import {
   applyTaskAutomation,
   calculateBattleScore,
   calculateBodyScore,
@@ -47,7 +61,10 @@ import {
   getOperationDiagnosis,
   hasBodyRecord,
   hasReviewRecord,
+  isReviewComplete,
 } from './utils/scoring'
+
+const REMINDER_CHECK_INTERVAL = 60 * 1000
 
 function App() {
   const today = getTodayKey()
@@ -65,6 +82,12 @@ function App() {
     () => learningTopicsByDate,
     migrateLearningRecordsMap,
   )
+  const [reminderRules, setReminderRules] = useStoredState(STORAGE_KEYS.reminderRules, defaultReminderRules, normalizeReminderRules)
+  const [dailyReminderState, setDailyReminderState] = useStoredState(STORAGE_KEYS.dailyReminderState, {}, normalizeDailyReminderState)
+  const [wakeSettings, setWakeSettings] = useStoredState(STORAGE_KEYS.wakeSettings, defaultWakeSettings, normalizeWakeSettings)
+  const [dailyWakeState, setDailyWakeState] = useStoredState(STORAGE_KEYS.dailyWakeState, {}, normalizeDailyWakeState)
+  const [currentTime, setCurrentTime] = useState(getCurrentTimeString())
+  const [activeReminder, setActiveReminder] = useState(null)
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [syncStatus, setSyncStatus] = useState('local')
@@ -86,8 +109,25 @@ function App() {
         privacyMode,
         learningTopicsByDate,
         learningRecordsByDate,
+        reminderRules,
+        dailyReminderState,
+        wakeSettings,
+        dailyWakeState,
       }),
-    [bodyByDate, financeAssets, learningRecordsByDate, learningTopicsByDate, opsByDate, privacyMode, reviewByDate, tasksByDate],
+    [
+      bodyByDate,
+      dailyReminderState,
+      dailyWakeState,
+      financeAssets,
+      learningRecordsByDate,
+      learningTopicsByDate,
+      opsByDate,
+      privacyMode,
+      reminderRules,
+      reviewByDate,
+      tasksByDate,
+      wakeSettings,
+    ],
   )
 
   const applyAppState = useCallback(
@@ -102,8 +142,25 @@ function App() {
       setPrivacyMode(normalized.settings.privacyMode)
       setLearningTopicsByDate(normalized.learningTopics)
       setLearningRecordsByDate(normalized.learningRecords)
+      setReminderRules(normalized.reminderRules)
+      setDailyReminderState(normalized.dailyReminderState)
+      setWakeSettings(normalized.wakeSettings)
+      setDailyWakeState(normalized.dailyWakeState)
     },
-    [setBodyByDate, setFinanceAssets, setLearningRecordsByDate, setLearningTopicsByDate, setOpsByDate, setPrivacyMode, setReviewByDate, setTasksByDate],
+    [
+      setBodyByDate,
+      setDailyReminderState,
+      setDailyWakeState,
+      setFinanceAssets,
+      setLearningRecordsByDate,
+      setLearningTopicsByDate,
+      setOpsByDate,
+      setPrivacyMode,
+      setReminderRules,
+      setReviewByDate,
+      setTasksByDate,
+      setWakeSettings,
+    ],
   )
 
   const runInitialCloudSync = useCallback(async () => {
@@ -338,8 +395,8 @@ function App() {
   const tasks = Array.isArray(storedTasks) ? storedTasks : createDefaultTasks(selectedDate)
   const selectedOpsRecords = Array.isArray(opsByDate[selectedDate]) ? opsByDate[selectedDate] : []
   const allOpsRecords = Object.values(opsByDate).flat()
-  const bodyRecord = { ...defaultBodyRecord, date: selectedDate, ...(bodyByDate[selectedDate] || {}) }
-  const reviewRecord = { ...defaultReviewRecord, date: selectedDate, ...(reviewByDate[selectedDate] || {}) }
+  const bodyRecord = useMemo(() => ({ ...defaultBodyRecord, date: selectedDate, ...(bodyByDate[selectedDate] || {}) }), [bodyByDate, selectedDate])
+  const reviewRecord = useMemo(() => ({ ...defaultReviewRecord, date: selectedDate, ...(reviewByDate[selectedDate] || {}) }), [reviewByDate, selectedDate])
   const operationSummary = calculateOperationSummary(selectedOpsRecords)
   const learningRecord = {
     topic: learningTopicsByDate[selectedDate] || '',
@@ -353,8 +410,29 @@ function App() {
   const battleScore = calculateBattleScore({ taskScore, bodyScore, operationScore })
   const operationDiagnosis = getOperationDiagnosis(operationSummary)
   const financeStatus = getFinanceStatusSummary(financeAssets)
+  const selectedDayReminderState = dailyReminderState[selectedDate] || {}
+  const wakeSummary = calculateWakeSummary(bodyRecord, wakeSettings, dailyWakeState[selectedDate])
+  const reviewComplete = isReviewComplete(reviewRecord)
+  const reminderSummary = buildReminderSummary(reminderRules, selectedDayReminderState, { wakeSummary, reviewComplete })
   const scores = { taskScore, operationScore, bodyScore, battleScore }
   const showCloudSync = cloudSyncAvailable
+
+  useEffect(() => {
+    setDailyWakeState((current) => {
+      const currentItem = current[selectedDate] || {}
+      const nextSummary = calculateWakeSummary(bodyRecord, wakeSettings, currentItem)
+
+      if (!nextSummary.actualWakeTime && !currentItem.actualWakeTime) return current
+
+      const nextItem = {
+        ...currentItem,
+        ...nextSummary,
+      }
+
+      if (JSON.stringify(currentItem) === JSON.stringify(nextItem)) return current
+      return { ...current, [selectedDate]: nextItem }
+    })
+  }, [bodyRecord, selectedDate, setDailyWakeState, wakeSettings])
 
   function updateTasksForSelectedDate(updater) {
     setTasksByDate((current) => {
@@ -387,6 +465,187 @@ function App() {
     })
   }
 
+  function updateReminderStateForDate(dateKey, reminderId, updater) {
+    setDailyReminderState((current) => {
+      const currentDay = current[dateKey] || {}
+      const currentItem = normalizeDailyReminderItem(currentDay[reminderId])
+      const nextItem = typeof updater === 'function' ? updater(currentItem) : updater
+
+      return {
+        ...current,
+        [dateKey]: {
+          ...currentDay,
+          [reminderId]: normalizeDailyReminderItem(nextItem),
+        },
+      }
+    })
+  }
+
+  function setBodyWakeTime(dateKey, wakeTime, onlyIfEmpty = false) {
+    if (!wakeTime) return
+
+    setBodyByDate((current) => {
+      const existing = current[dateKey] || {}
+      if (onlyIfEmpty && (existing.wakeTime || existing.wakeUpTime || existing.起床时间)) return current
+
+      const nextRecord = {
+        ...defaultBodyRecord,
+        date: dateKey,
+        ...existing,
+        wakeTime,
+      }
+
+      if (nextRecord.bedTime) {
+        nextRecord.sleepHours = calculateSleepHours(nextRecord.bedTime, wakeTime)
+      }
+
+      return { ...current, [dateKey]: nextRecord }
+    })
+  }
+
+  function setWakeSummaryForDate(dateKey, actualWakeTime) {
+    setBodyWakeTime(dateKey, actualWakeTime)
+    setDailyWakeState((current) => {
+      const currentItem = current[dateKey] || {}
+      const nextSummary = calculateWakeSummary({ ...(bodyByDate[dateKey] || {}), wakeTime: actualWakeTime }, wakeSettings, currentItem)
+      return {
+        ...current,
+        [dateKey]: {
+          ...currentItem,
+          ...nextSummary,
+        },
+      }
+    })
+  }
+
+  function completeReminder(dateKey, reminderId, wakeTime = getCurrentTimeString()) {
+    updateReminderStateForDate(dateKey, reminderId, (item) => ({
+      ...item,
+      status: 'completed',
+      completedAt: new Date().toISOString(),
+      snoozedUntil: null,
+    }))
+
+    if (reminderId === 'wake') {
+      setBodyWakeTime(dateKey, wakeTime, true)
+    }
+  }
+
+  function snoozeReminder(dateKey, reminderId) {
+    const snoozedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString()
+    updateReminderStateForDate(dateKey, reminderId, (item) => ({
+      ...item,
+      status: 'snoozed',
+      snoozedUntil,
+    }))
+  }
+
+  function skipReminder(dateKey, reminderId) {
+    updateReminderStateForDate(dateKey, reminderId, (item) => ({
+      ...item,
+      status: 'skipped',
+      snoozedUntil: null,
+    }))
+  }
+
+  useEffect(() => {
+    function checkReminders() {
+      const now = new Date()
+      const current = getCurrentTimeString(now)
+      setCurrentTime(current)
+
+      if (activeReminder) return
+
+      const todayKey = getTodayKey()
+      const currentMinutes = timeToMinutes(current)
+      if (currentMinutes === null) return
+
+      const todayDayState = dailyReminderState[todayKey] || {}
+      const todayBodyRecord = { ...defaultBodyRecord, date: todayKey, ...(bodyByDate[todayKey] || {}) }
+      const todayWakeSummary = calculateWakeSummary(todayBodyRecord, wakeSettings, dailyWakeState[todayKey])
+      const todayReviewRecord = { ...defaultReviewRecord, date: todayKey, ...(reviewByDate[todayKey] || {}) }
+      const context = { wakeSummary: todayWakeSummary, reviewComplete: isReviewComplete(todayReviewRecord) }
+
+      for (const rule of normalizeReminderRules(reminderRules)) {
+        if (!rule.active) continue
+
+        const status = getReminderStatus(rule.id, todayDayState, context)
+        if (status === 'completed' || status === 'skipped') continue
+
+        const state = normalizeDailyReminderItem(todayDayState[rule.id])
+        let triggerKey = null
+
+        if (state.snoozedUntil && new Date(state.snoozedUntil).getTime() <= now.getTime() && !state.triggeredTimes.includes(`snooze:${state.snoozedUntil}`)) {
+          triggerKey = `snooze:${state.snoozedUntil}`
+        }
+
+        if (!triggerKey) {
+          const dueTime = rule.times.find((time) => {
+            const reminderMinutes = timeToMinutes(time)
+            return reminderMinutes !== null && reminderMinutes <= currentMinutes && !state.triggeredTimes.includes(`time:${time}`)
+          })
+
+          if (dueTime) {
+            triggerKey = `time:${dueTime}`
+          }
+        }
+
+        if (!triggerKey) continue
+
+        setDailyReminderState((currentState) => {
+          const currentDay = currentState[todayKey] || {}
+          const currentItem = normalizeDailyReminderItem(currentDay[rule.id])
+          return {
+            ...currentState,
+            [todayKey]: {
+              ...currentDay,
+              [rule.id]: {
+                ...currentItem,
+                status: currentItem.status === 'snoozed' ? 'pending' : currentItem.status,
+                remindCount: Number(currentItem.remindCount || 0) + 1,
+                triggeredTimes: [...new Set([...currentItem.triggeredTimes, triggerKey])],
+              },
+            },
+          }
+        })
+
+        setActiveReminder({
+          dateKey: todayKey,
+          ruleId: rule.id,
+          title: rule.title,
+          message: REMINDER_MESSAGES[rule.id],
+        })
+        break
+      }
+    }
+
+    checkReminders()
+    const timer = window.setInterval(checkReminders, REMINDER_CHECK_INTERVAL)
+    return () => window.clearInterval(timer)
+  }, [activeReminder, bodyByDate, dailyReminderState, dailyWakeState, reminderRules, reviewByDate, setDailyReminderState, wakeSettings])
+
+  function closeActiveReminder() {
+    setActiveReminder(null)
+  }
+
+  function completeActiveReminder() {
+    if (!activeReminder) return
+    completeReminder(activeReminder.dateKey, activeReminder.ruleId)
+    setActiveReminder(null)
+  }
+
+  function snoozeActiveReminder() {
+    if (!activeReminder) return
+    snoozeReminder(activeReminder.dateKey, activeReminder.ruleId)
+    setActiveReminder(null)
+  }
+
+  function skipActiveReminder() {
+    if (!activeReminder) return
+    skipReminder(activeReminder.dateKey, activeReminder.ruleId)
+    setActiveReminder(null)
+  }
+
   const pages = {
     dashboard: (
       <Dashboard
@@ -405,6 +664,9 @@ function App() {
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
         learningRecord={learningRecord}
         setLearningRecord={updateLearningRecordForSelectedDate}
+        reminderSummary={reminderSummary}
+        wakeSummary={wakeSummary}
+        currentTime={currentTime}
       />
     ),
     xianyu: (
@@ -424,6 +686,7 @@ function App() {
         bodyRecords={bodyByDate}
         setBodyRecords={setBodyByDate}
         bodyScore={bodyScore}
+        wakeSummary={wakeSummary}
       />
     ),
     finance: (
@@ -435,6 +698,25 @@ function App() {
       />
     ),
     review: <ReviewPanel selectedDate={selectedDate} reviewRecords={reviewByDate} setReviewRecords={setReviewByDate} />,
+    reminders: (
+      <ReminderPanel
+        selectedDate={selectedDate}
+        reminderRules={reminderRules}
+        setReminderRules={setReminderRules}
+        dayState={selectedDayReminderState}
+        updateReminderState={(reminderId, updater) => updateReminderStateForDate(selectedDate, reminderId, updater)}
+        completeReminder={(reminderId) => completeReminder(selectedDate, reminderId)}
+        snoozeReminder={(reminderId) => snoozeReminder(selectedDate, reminderId)}
+        skipReminder={(reminderId) => skipReminder(selectedDate, reminderId)}
+        wakeSettings={wakeSettings}
+        setWakeSettings={setWakeSettings}
+        wakeSummary={wakeSummary}
+        setWakeTime={(wakeTime) => setWakeSummaryForDate(selectedDate, wakeTime)}
+        operationSummary={operationSummary}
+        learningRecord={learningRecord}
+        reviewComplete={reviewComplete}
+      />
+    ),
   }
 
   return (
@@ -454,6 +736,30 @@ function App() {
               onSkipMerge={handleSkipMerge}
             />
             <SyncStatus status={syncStatus} message={syncMessage} />
+          </div>
+        ) : null}
+        {activeReminder ? (
+          <div className="fixed right-4 top-4 z-50 w-[min(420px,calc(100vw-2rem))] rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase text-amber-700">督促 · {activeReminder.title}</p>
+                <p className="mt-2 text-sm font-bold leading-6">{activeReminder.message}</p>
+              </div>
+              <button type="button" onClick={closeActiveReminder} className="rounded-md px-2 py-1 text-sm font-bold text-amber-700 hover:bg-amber-100">
+                关闭
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={completeActiveReminder} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white">
+                完成
+              </button>
+              <button type="button" onClick={snoozeActiveReminder} className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-900">
+                稍后 15 分钟
+              </button>
+              <button type="button" onClick={skipActiveReminder} className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-900">
+                今天跳过
+              </button>
+            </div>
           </div>
         ) : null}
         {pages[activePage]}

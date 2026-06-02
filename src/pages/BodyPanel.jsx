@@ -5,6 +5,7 @@ import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
 import { defaultBodyRecord, EXERCISE_OPTIONS, RELAPSE_STATUS_OPTIONS, RELAPSE_TYPE_OPTIONS } from '../utils/defaults'
 import { calculateSleepHours, formatDateLabel, sortByDateDesc } from '../utils/date'
+import { WAKE_STATUS_LABELS } from '../utils/reminders'
 import { getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
 function displayExercise(value) {
@@ -33,7 +34,7 @@ function getRelapseSummary(record) {
   return `是${types.length ? `（${types.join('、')}）` : ''}${note}`
 }
 
-export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, bodyScore }) {
+export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, bodyScore, wakeSummary }) {
   const record = { ...defaultBodyRecord, date: selectedDate, ...(bodyRecords[selectedDate] || {}) }
   const history = sortByDateDesc(Object.values(bodyRecords)).slice(0, 10)
   const relapseStatus = getRelapseStatus(record)
@@ -71,8 +72,9 @@ export default function BodyPanel({ selectedDate, bodyRecords, setBodyRecords, b
         <p className="mt-2 text-sm text-slate-600">记录睡眠、饮食、运动和备注，防止硬扛到报废。</p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
         <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 运动 / 饮食 / 备注" tone="green" />
+        <ScoreCard label="起床" value={WAKE_STATUS_LABELS[wakeSummary.status]} detail={wakeSummary.actualWakeTime || '未记录'} tone={wakeSummary.status === 'ok' ? 'green' : wakeSummary.status === 'late' ? 'red' : 'yellow'} />
         <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
         <ScoreCard label="运动" value={getExerciseText(record) ? '已记' : '未记'} detail="完成运动加 30 分" tone={getExerciseText(record) ? 'green' : 'yellow'} />
         <ScoreCard label="体重" value={record.weight || '未记'} detail="记录体重加 10 分" />

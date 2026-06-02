@@ -30,6 +30,46 @@ export const RELAPSE_TYPE_OPTIONS = ['熬夜', '暴食', '乱刷短视频', '拖
 
 export const DISCIPLINE_OPTIONS = ['未记录', '没有', '有']
 
+export const defaultReminderRules = [
+  {
+    id: 'wake',
+    title: '起床',
+    times: ['11:40', '12:00', '12:20'],
+    active: true,
+  },
+  {
+    id: 'xianyu',
+    title: '养号',
+    times: ['13:30', '16:30', '21:00'],
+    active: true,
+  },
+  {
+    id: 'study',
+    title: '学习',
+    times: ['15:00', '20:30', '00:30'],
+    active: true,
+  },
+  {
+    id: 'review',
+    title: '复盘',
+    times: ['01:00', '01:45'],
+    active: true,
+  },
+  {
+    id: 'sleep',
+    title: '睡觉',
+    times: ['02:00', '02:30', '03:00'],
+    active: true,
+  },
+]
+
+export const defaultWakeSettings = {
+  targetWakeTime: '12:00',
+  finalWakeTime: '09:30',
+  stepMinutes: 15,
+  graceMinutes: 30,
+}
+
 export const defaultBodyRecord = {
   date: '',
   weight: '',

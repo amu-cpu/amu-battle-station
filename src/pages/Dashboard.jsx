@@ -7,6 +7,7 @@ import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
 import { TASK_CATEGORIES } from '../utils/defaults'
 import { formatDateLabel, shiftDateKey } from '../utils/date'
+import { REMINDER_STATUS_LABELS, timeToMinutes, WAKE_STATUS_LABELS } from '../utils/reminders'
 import { formatCurrency, getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
 function groupTasks(tasks) {
@@ -74,13 +75,15 @@ export default function Dashboard({
   scores,
   operationSummary,
   bodyRecord,
-  hasBodyRecord,
   financeStatus,
   privacyMode,
   reviewRecord,
   hasReviewRecord,
   learningRecord,
   setLearningRecord,
+  reminderSummary,
+  wakeSummary,
+  currentTime,
 }) {
   const [newTask, setNewTask] = useState({ category: '赚钱', title: '' })
   const learningTasks = effectiveTasks.filter((task) => task.category === '学习')
@@ -94,9 +97,30 @@ export default function Dashboard({
   const riskAlerts = useMemo(() => {
     const alerts = []
     const learningTopic = learningRecord.topic || ''
+    const reminderStatus = Object.fromEntries(reminderSummary.map((item) => [item.id, item.status]))
 
-    if (!hasBodyRecord) {
-      alerts.push({ tone: 'warning', text: '今天还没有身体记录，别让身体无限电池。' })
+    if (wakeSummary.status === 'unrecorded') {
+      alerts.push({ tone: 'warning', text: '今天还没记录起床时间。' })
+    }
+
+    if (wakeSummary.status === 'late') {
+      alerts.push({ tone: 'danger', text: '今天晚起了，晚上别再装无辜。' })
+    }
+
+    if (reminderStatus.xianyu === 'pending') {
+      alerts.push({ tone: 'warning', text: '养号还没做，别继续靠手写单子硬扛。' })
+    }
+
+    if (reminderStatus.study === 'pending' && !learningTopic.trim()) {
+      alerts.push({ tone: 'warning', text: '学习还没做，长期能力会掉队。' })
+    }
+
+    if (reminderStatus.review === 'pending') {
+      alerts.push({ tone: 'warning', text: '复盘还没写，今天没有闭环。' })
+    }
+
+    if (reminderStatus.sleep === 'pending' && timeToMinutes(currentTime) >= timeToMinutes('02:00')) {
+      alerts.push({ tone: 'warning', text: '睡觉收尾还没做，别再乱刷。' })
     }
 
     const relapseStatus = getRelapseStatus(bodyRecord)
@@ -106,10 +130,6 @@ export default function Dashboard({
 
     if (relapseStatus === 'yes') {
       alerts.push({ tone: 'danger', text: '今天已破戒，晚上复盘原因。' })
-    }
-
-    if (!learningTopic.trim()) {
-      alerts.push({ tone: 'warning', text: '今天学习动作还没定，长期能力会掉队。' })
     }
 
     if (operationSummary.recordCount === 0) {
@@ -125,7 +145,7 @@ export default function Dashboard({
     }
 
     return alerts.slice(0, 5)
-  }, [bodyRecord, displayTasks, financeStatus, hasBodyRecord, learningRecord.topic, operationSummary])
+  }, [bodyRecord, currentTime, displayTasks, financeStatus, learningRecord.topic, operationSummary, reminderSummary, wakeSummary.status])
 
   function toggleTask(targetTask) {
     if (targetTask.isLearningRecord) {
@@ -333,6 +353,17 @@ export default function Dashboard({
         </Card>
       </div>
 
+      <Card title="今日督促" eyebrow="Reminder">
+        <div className="grid gap-2 md:grid-cols-5">
+          {reminderSummary.map((item) => (
+            <div key={item.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">{item.title}</p>
+              <p className="mt-1 text-sm font-black text-slate-950">{REMINDER_STATUS_LABELS[item.status]}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
         <Card title="今日运营概览" eyebrow="Ops">
           <div className="grid grid-cols-2 gap-2">
@@ -349,6 +380,9 @@ export default function Dashboard({
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="体重" value={bodyRecord.weight || '未记录'} />
             <StatItem label="睡眠" value={bodyRecord.sleepHours ? `${bodyRecord.sleepHours} 小时` : '未记录'} />
+            <StatItem label="目标起床" value={wakeSummary.targetWakeTime || '未记录'} />
+            <StatItem label="实际起床" value={wakeSummary.actualWakeTime || '未记录'} />
+            <StatItem label="起床状态" value={WAKE_STATUS_LABELS[wakeSummary.status]} />
             <StatItem label="运动" value={bodyRecord.exerciseText || (bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录')} />
             <StatItem label="破戒" value={getRelapseLabel(bodyRecord)} />
             <StatItem label="身体分" value={`${scores.bodyScore}/100`} />
