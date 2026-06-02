@@ -66,6 +66,12 @@ function StatItem({ label, value }) {
   )
 }
 
+function getReminderDashboardLabel(item, wakeSummary) {
+  if (item.id === 'wake') return WAKE_STATUS_LABELS[wakeSummary.status]
+  if (!item.active) return '今日不提醒'
+  return REMINDER_STATUS_LABELS[item.status]
+}
+
 export default function Dashboard({
   selectedDate,
   today,
@@ -97,29 +103,30 @@ export default function Dashboard({
   const riskAlerts = useMemo(() => {
     const alerts = []
     const learningTopic = learningRecord.topic || ''
+    const reminderById = Object.fromEntries(reminderSummary.map((item) => [item.id, item]))
     const reminderStatus = Object.fromEntries(reminderSummary.map((item) => [item.id, item.status]))
 
-    if (wakeSummary.status === 'unrecorded') {
+    if (reminderById.wake?.active !== false && wakeSummary.status === 'unrecorded') {
       alerts.push({ tone: 'warning', text: '今天还没记录起床时间。' })
     }
 
-    if (wakeSummary.status === 'late') {
+    if (reminderById.wake?.active !== false && wakeSummary.status === 'late') {
       alerts.push({ tone: 'danger', text: '今天晚起了，晚上别再装无辜。' })
     }
 
-    if (reminderStatus.xianyu === 'pending') {
+    if (reminderById.xianyu?.active !== false && reminderStatus.xianyu === 'pending') {
       alerts.push({ tone: 'warning', text: '养号还没做，别继续靠手写单子硬扛。' })
     }
 
-    if (reminderStatus.study === 'pending' && !learningTopic.trim()) {
+    if (reminderById.study?.active !== false && reminderStatus.study === 'pending' && !learningTopic.trim()) {
       alerts.push({ tone: 'warning', text: '学习还没做，长期能力会掉队。' })
     }
 
-    if (reminderStatus.review === 'pending') {
+    if (reminderById.review?.active !== false && reminderStatus.review === 'pending') {
       alerts.push({ tone: 'warning', text: '复盘还没写，今天没有闭环。' })
     }
 
-    if (reminderStatus.sleep === 'pending' && timeToMinutes(currentTime) >= timeToMinutes('02:00')) {
+    if (reminderById.sleep?.active !== false && reminderStatus.sleep === 'pending' && timeToMinutes(currentTime) >= timeToMinutes('02:00')) {
       alerts.push({ tone: 'warning', text: '睡觉收尾还没做，别再乱刷。' })
     }
 
@@ -358,7 +365,7 @@ export default function Dashboard({
           {reminderSummary.map((item) => (
             <div key={item.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-bold text-slate-500">{item.title}</p>
-              <p className="mt-1 text-sm font-black text-slate-950">{REMINDER_STATUS_LABELS[item.status]}</p>
+              <p className="mt-1 text-sm font-black text-slate-950">{getReminderDashboardLabel(item, wakeSummary)}</p>
             </div>
           ))}
         </div>

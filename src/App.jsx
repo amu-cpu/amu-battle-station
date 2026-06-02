@@ -751,13 +751,13 @@ function App() {
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" onClick={completeActiveReminder} className="rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white">
-                完成
+                已完成
               </button>
               <button type="button" onClick={snoozeActiveReminder} className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-900">
-                稍后 15 分钟
+                15分钟后提醒
               </button>
               <button type="button" onClick={skipActiveReminder} className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-900">
-                今天跳过
+                今日不提醒
               </button>
             </div>
           </div>

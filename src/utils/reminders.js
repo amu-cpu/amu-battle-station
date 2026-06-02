@@ -4,7 +4,7 @@ export const REMINDER_STATUS_LABELS = {
   pending: '未完成',
   completed: '已完成',
   snoozed: '稍后',
-  skipped: '跳过',
+  skipped: '今日不提醒',
 }
 
 export const WAKE_STATUS_LABELS = {
