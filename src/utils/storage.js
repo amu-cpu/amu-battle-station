@@ -110,6 +110,11 @@ function normalizeRelapseTypes(value) {
     .filter(Boolean)
 }
 
+function normalizeStoredNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
 function toDateMap(value) {
   return isPlainObject(value) ? value : {}
 }
@@ -209,6 +214,53 @@ export function migrateLearningRecordsMap(recordsByDate) {
   )
 }
 
+export function migrateXianyuRecord(record, dateKey = '') {
+  if (!isPlainObject(record)) return record
+
+  const next = { ...record }
+  const date = firstStoredValue(record, ['date', '日期']) || dateKey
+  const views = firstStoredValue(record, ['views', 'browse', 'viewCount', 'browseCount', '浏览量', '浏览'])
+
+  fillIfEmpty(next, 'date', date)
+
+  return {
+    ...next,
+    views: normalizeStoredNumber(views),
+  }
+}
+
+export function migrateXianyuRecordsMap(recordsByDate) {
+  return Object.fromEntries(
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, records]) => [
+      dateKey,
+      Array.isArray(records) ? records.map((record) => migrateXianyuRecord(record, dateKey)) : records,
+    ]),
+  )
+}
+
+function migrateXianyuRecordsList(records) {
+  return Array.isArray(records) ? records.map((record) => migrateXianyuRecord(record)) : records
+}
+
+function xianyuRecordsListToDateMap(records) {
+  if (!Array.isArray(records)) return {}
+
+  return records.reduce((recordsByDate, record) => {
+    const normalized = migrateXianyuRecord(record)
+    const dateKey = normalized?.date
+    if (!dateKey) return recordsByDate
+
+    return {
+      ...recordsByDate,
+      [dateKey]: [...(recordsByDate[dateKey] || []), normalized],
+    }
+  }, {})
+}
+
+function toXianyuRecordsMap(value) {
+  return Array.isArray(value) ? xianyuRecordsListToDateMap(value) : migrateXianyuRecordsMap(toDateMap(value))
+}
+
 function hasMeaningfulLearningRecords(learningRecords) {
   return Object.values(toDateMap(learningRecords)).some((record) => {
     const normalized = migrateLearningRecord(record)
@@ -246,7 +298,7 @@ export function normalizeAppState(state, fallbackAssets = []) {
     schemaVersion: APP_STATE_SCHEMA_VERSION,
     updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),
     tasks: migrateTasksMap(toDateMap(source.tasks ?? source.tasksByDate)),
-    xianyuRecords: toDateMap(source.xianyuRecords ?? source.opsByDate),
+    xianyuRecords: toXianyuRecordsMap(source.xianyuRecords ?? source.opsByDate),
     bodyRecords: migrateBodyRecordsMap(toDateMap(source.bodyRecords ?? source.bodyByDate)),
     financeAssets: migrateFinanceAssets(toAssetList(source.financeAssets ?? source.assets, fallbackAssets)),
     reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
@@ -488,6 +540,7 @@ function parseBackupValue(raw) {
 export function createProjectBackupPayload() {
   const data = {}
   const rawLocalStorage = {}
+  const appState = migrateLocalStorageToAppState()
 
   readProjectKeys().forEach((key) => {
     const raw = window.localStorage.getItem(key)
@@ -495,14 +548,32 @@ export function createProjectBackupPayload() {
     data[key] = parseBackupValue(raw)
   })
 
+  data[STORAGE_KEYS.opsByDate] = appState.xianyuRecords
+
+  if (data[STORAGE_KEYS.xianyuRecords] !== undefined) {
+    data[STORAGE_KEYS.xianyuRecords] = Object.values(appState.xianyuRecords).flat()
+  }
+
   return {
     app: 'amu-battle-station',
     schemaVersion: APP_STATE_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     data,
-    appState: migrateLocalStorageToAppState(),
+    appState,
     rawLocalStorage,
   }
+}
+
+function normalizeBackupEntryValue(key, value) {
+  if (key === STORAGE_KEYS.opsByDate) {
+    return Array.isArray(value) ? xianyuRecordsListToDateMap(value) : migrateXianyuRecordsMap(value)
+  }
+
+  if (key === STORAGE_KEYS.xianyuRecords) {
+    return migrateXianyuRecordsList(value)
+  }
+
+  return value
 }
 
 export function restoreProjectBackupPayload(payload) {
@@ -525,7 +596,7 @@ export function restoreProjectBackupPayload(payload) {
   })
 
   entries.forEach(([key, value]) => {
-    window.localStorage.setItem(key, JSON.stringify(value))
+    window.localStorage.setItem(key, JSON.stringify(normalizeBackupEntryValue(key, value)))
   })
 }
 
@@ -563,15 +634,7 @@ export function migrateOpsByDate() {
 
   if (!Array.isArray(legacyRecords)) return {}
 
-  return legacyRecords.reduce((recordsByDate, record) => {
-    const dateKey = record?.date
-    if (!dateKey) return recordsByDate
-
-    return {
-      ...recordsByDate,
-      [dateKey]: [...(recordsByDate[dateKey] || []), record],
-    }
-  }, {})
+  return xianyuRecordsListToDateMap(legacyRecords)
 }
 
 export function migrateDateMap(legacyKey) {

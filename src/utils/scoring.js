@@ -7,6 +7,10 @@ export function clampScore(score) {
   return Math.max(0, Math.min(100, Math.round(score)))
 }
 
+function getOperationViews(record) {
+  return toNumber(record?.views ?? record?.browse ?? record?.viewCount ?? record?.browseCount)
+}
+
 function isFilled(value) {
   return String(value ?? '').trim() !== ''
 }
@@ -42,6 +46,7 @@ export function calculateOperationSummary(records, dateKey) {
     (summary, record) => ({
       publishCount: summary.publishCount + toNumber(record.publishCount),
       exposure: summary.exposure + toNumber(record.exposure),
+      views: summary.views + getOperationViews(record),
       inquiries: summary.inquiries + toNumber(record.inquiries),
       wechat: summary.wechat + toNumber(record.wechat),
       deals: summary.deals + toNumber(record.deals),
@@ -52,6 +57,7 @@ export function calculateOperationSummary(records, dateKey) {
     {
       publishCount: 0,
       exposure: 0,
+      views: 0,
       inquiries: 0,
       wechat: 0,
       deals: 0,
@@ -64,10 +70,14 @@ export function calculateOperationSummary(records, dateKey) {
 
 export function calculateOperationScore(summary) {
   let score = 0
-  if (summary.publishCount > 0) score += 35
-  if (summary.inquiries > 0) score += 25
-  if (summary.wechat > 0) score += 20
-  if (summary.deals > 0) score += 20
+  if (summary.publishCount > 0) score += 20
+  if (summary.exposure > 0) score += 15
+  if (summary.views > 0) score += 15
+  if (summary.inquiries > 0) score += 15
+  if (summary.wechat > 0) score += 15
+  if (summary.deals > 0) score += 10
+  if (summary.income > 0) score += 5
+  if (summary.warmedCount > 0) score += 5
   return clampScore(score)
 }
 
@@ -76,23 +86,31 @@ export function getOperationDiagnosis(summary) {
     return '当天没有发布，现金流动作不足，先上架，不要研究半天。'
   }
 
-  if (summary.exposure < 50) {
-    return '曝光低，优先改标题、封面和关键词。'
+  if (summary.exposure === 0) {
+    return '曝光为 0，优先检查标题、主图、类目和擦亮。'
   }
 
-  if (summary.inquiries === 0) {
-    return '有曝光没咨询，商品入口和卖点不够尖。'
+  if (summary.exposure > 0 && summary.views === 0) {
+    return '有曝光没浏览，主图和标题不够吸引人。'
   }
 
-  if (summary.wechat === 0) {
-    return '有咨询没加微，私信话术太软，需要更直接地要资料。'
+  if (summary.views > 0 && summary.inquiries === 0) {
+    return '有浏览没咨询，详情页、价格或信任感有问题。'
   }
 
-  if (summary.deals === 0) {
-    return '有加微没成交，报价、案例和信任证明需要补强。'
+  if (summary.inquiries > 0 && summary.wechat === 0) {
+    return '有咨询没加微，私信引导不够直接。'
   }
 
-  return '今天有成交，复盘成交来源，把这条路径复制十遍。'
+  if (summary.wechat > 0 && summary.deals === 0) {
+    return '有加微没成交，成交话术或报价需要优化。'
+  }
+
+  if (summary.deals > 0) {
+    return '今天有成交，记录来源和话术，别只爽一下。'
+  }
+
+  return '继续补齐漏斗数据，先看哪一环断了。'
 }
 
 export function calculateBodyScore(record) {
