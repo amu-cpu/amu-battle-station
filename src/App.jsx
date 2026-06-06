@@ -32,6 +32,7 @@ import {
   migrateReviewRecordsMap,
   migrateTasksMap,
   migrateTasksByDate,
+  normalizeAppSettings,
   normalizeAppState,
   STORAGE_KEYS,
   useStoredState,
@@ -76,6 +77,7 @@ function App() {
   const [financeAssets, setFinanceAssets] = useStoredState(STORAGE_KEYS.assets, () => migrateAssets(defaultFinanceAssets), migrateFinanceAssets)
   const [reviewByDate, setReviewByDate] = useStoredState(STORAGE_KEYS.reviewByDate, () => migrateDateMap(STORAGE_KEYS.reviewRecords), migrateReviewRecordsMap)
   const [privacyMode, setPrivacyMode] = useStoredState(STORAGE_KEYS.privacyMode, true)
+  const [settings, setSettings] = useStoredState(STORAGE_KEYS.settings, { bodyPublicView: false }, normalizeAppSettings)
   const [learningTopicsByDate, setLearningTopicsByDate] = useStoredState(STORAGE_KEYS.learningTopicsByDate, {})
   const [learningRecordsByDate, setLearningRecordsByDate] = useStoredState(
     STORAGE_KEYS.learningRecordsByDate,
@@ -107,6 +109,7 @@ function App() {
         financeAssets,
         reviewByDate,
         privacyMode,
+        bodyPublicView: settings.bodyPublicView,
         learningTopicsByDate,
         learningRecordsByDate,
         reminderRules,
@@ -123,6 +126,7 @@ function App() {
       learningTopicsByDate,
       opsByDate,
       privacyMode,
+      settings.bodyPublicView,
       reminderRules,
       reviewByDate,
       tasksByDate,
@@ -140,6 +144,7 @@ function App() {
       setFinanceAssets(normalized.financeAssets)
       setReviewByDate(normalized.reviewRecords)
       setPrivacyMode(normalized.settings.privacyMode)
+      setSettings(normalized.settings)
       setLearningTopicsByDate(normalized.learningTopics)
       setLearningRecordsByDate(normalized.learningRecords)
       setReminderRules(normalized.reminderRules)
@@ -156,6 +161,7 @@ function App() {
       setLearningTopicsByDate,
       setOpsByDate,
       setPrivacyMode,
+      setSettings,
       setReminderRules,
       setReviewByDate,
       setTasksByDate,
@@ -465,6 +471,10 @@ function App() {
     })
   }
 
+  function setBodyPublicView(value) {
+    setSettings((current) => normalizeAppSettings({ ...current, bodyPublicView: value }))
+  }
+
   function updateReminderStateForDate(dateKey, reminderId, updater) {
     setDailyReminderState((current) => {
       const currentDay = current[dateKey] || {}
@@ -687,6 +697,8 @@ function App() {
         setBodyRecords={setBodyByDate}
         bodyScore={bodyScore}
         wakeSummary={wakeSummary}
+        bodyPublicView={settings.bodyPublicView}
+        setBodyPublicView={setBodyPublicView}
       />
     ),
     finance: (

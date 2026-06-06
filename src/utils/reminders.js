@@ -33,11 +33,17 @@ export function emptyDailyReminderItem() {
 }
 
 export function normalizeReminderRules(rules) {
-  if (!Array.isArray(rules) || !rules.length) return defaultReminderRules.map((rule) => ({ ...rule, times: [...rule.times] }))
+  if (!Array.isArray(rules) || !rules.length)
+    return defaultReminderRules.map((rule) => ({
+      ...rule,
+      times: [...rule.times],
+    }))
 
   return defaultReminderRules.map((defaultRule) => {
     const storedRule = rules.find((rule) => rule?.id === defaultRule.id) || {}
-    const storedTimes = Array.isArray(storedRule.times) ? storedRule.times.filter(Boolean) : defaultRule.times
+    const storedTimes = Array.isArray(storedRule.times)
+      ? storedRule.times.filter(Boolean)
+      : defaultRule.times
 
     return {
       ...defaultRule,
@@ -54,7 +60,9 @@ export function normalizeDailyReminderItem(item) {
   return {
     ...emptyDailyReminderItem(),
     ...(item && typeof item === 'object' && !Array.isArray(item) ? item : {}),
-    triggeredTimes: Array.isArray(item?.triggeredTimes) ? item.triggeredTimes : [],
+    triggeredTimes: Array.isArray(item?.triggeredTimes)
+      ? item.triggeredTimes
+      : [],
   }
 }
 
@@ -65,10 +73,11 @@ export function normalizeDailyReminderState(state) {
     Object.entries(state).map(([dateKey, dayState]) => [
       dateKey,
       Object.fromEntries(
-        Object.entries(dayState && typeof dayState === 'object' && !Array.isArray(dayState) ? dayState : {}).map(([id, item]) => [
-          id,
-          normalizeDailyReminderItem(item),
-        ]),
+        Object.entries(
+          dayState && typeof dayState === 'object' && !Array.isArray(dayState)
+            ? dayState
+            : {},
+        ).map(([id, item]) => [id, normalizeDailyReminderItem(item)]),
       ),
     ]),
   )
@@ -77,7 +86,9 @@ export function normalizeDailyReminderState(state) {
 export function normalizeWakeSettings(settings) {
   return {
     ...defaultWakeSettings,
-    ...(settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {}),
+    ...(settings && typeof settings === 'object' && !Array.isArray(settings)
+      ? settings
+      : {}),
   }
 }
 
@@ -87,24 +98,30 @@ export function normalizeDailyWakeState(state) {
     Object.entries(state).map(([dateKey, item]) => [
       dateKey,
       {
-        targetWakeTime: item?.targetWakeTime || defaultWakeSettings.targetWakeTime,
+        targetWakeTime:
+          item?.targetWakeTime || defaultWakeSettings.targetWakeTime,
         actualWakeTime: item?.actualWakeTime || '',
         status: item?.status || 'unrecorded',
-        deviationMinutes: Number.isFinite(Number(item?.deviationMinutes)) ? Number(item.deviationMinutes) : null,
+        deviationMinutes: Number.isFinite(Number(item?.deviationMinutes))
+          ? Number(item.deviationMinutes)
+          : null,
       },
     ]),
   )
 }
 
 export function timeToMinutes(time) {
-  const [hour, minute] = String(time || '').split(':').map(Number)
+  const [hour, minute] = String(time || '')
+    .split(':')
+    .map(Number)
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
   return hour * 60 + minute
 }
 
 export function minutesToTime(totalMinutes) {
   const minutesInDay = 24 * 60
-  const normalized = ((Math.round(totalMinutes) % minutesInDay) + minutesInDay) % minutesInDay
+  const normalized =
+    ((Math.round(totalMinutes) % minutesInDay) + minutesInDay) % minutesInDay
   const hour = String(Math.floor(normalized / 60)).padStart(2, '0')
   const minute = String(normalized % 60).padStart(2, '0')
   return `${hour}:${minute}`
@@ -115,13 +132,25 @@ export function getCurrentTimeString(date = new Date()) {
 }
 
 export function getWakeTime(record) {
-  return record?.wakeTime || record?.wakeUpTime || record?.endSleepTime || record?.起床时间 || ''
+  return (
+    record?.wakeTime ||
+    record?.wakeUpTime ||
+    record?.endSleepTime ||
+    record?.起床时间 ||
+    ''
+  )
 }
 
-export function calculateWakeSummary(record, wakeSettings, storedWakeState = {}) {
+export function calculateWakeSummary(
+  record,
+  wakeSettings,
+  storedWakeState = {},
+) {
   const settings = normalizeWakeSettings(wakeSettings)
-  const actualWakeTime = getWakeTime(record) || storedWakeState.actualWakeTime || ''
-  const targetWakeTime = storedWakeState.targetWakeTime || settings.targetWakeTime
+  const actualWakeTime =
+    getWakeTime(record) || storedWakeState.actualWakeTime || ''
+  const targetWakeTime =
+    storedWakeState.targetWakeTime || settings.targetWakeTime
   const targetMinutes = timeToMinutes(targetWakeTime)
   const actualMinutes = timeToMinutes(actualWakeTime)
 
@@ -135,7 +164,8 @@ export function calculateWakeSummary(record, wakeSettings, storedWakeState = {})
   }
 
   const deviationMinutes = actualMinutes - targetMinutes
-  const status = deviationMinutes <= Number(settings.graceMinutes || 0) ? 'ok' : 'late'
+  const status =
+    deviationMinutes <= Number(settings.graceMinutes || 0) ? 'ok' : 'late'
 
   return {
     targetWakeTime,
@@ -149,13 +179,17 @@ export function advanceWakeTarget(settings) {
   const normalized = normalizeWakeSettings(settings)
   const targetMinutes = timeToMinutes(normalized.targetWakeTime)
   const finalMinutes = timeToMinutes(normalized.finalWakeTime)
-  const stepMinutes = Number(normalized.stepMinutes || defaultWakeSettings.stepMinutes)
+  const stepMinutes = Number(
+    normalized.stepMinutes || defaultWakeSettings.stepMinutes,
+  )
 
   if (targetMinutes === null || finalMinutes === null) return normalized
 
   return {
     ...normalized,
-    targetWakeTime: minutesToTime(Math.max(finalMinutes, targetMinutes - stepMinutes)),
+    targetWakeTime: minutesToTime(
+      Math.max(finalMinutes, targetMinutes - stepMinutes),
+    ),
   }
 }
 

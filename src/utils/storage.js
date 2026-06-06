@@ -21,6 +21,7 @@ export const STORAGE_KEYS = {
   dailyReminderState: 'amu-battle-station:daily-reminder-state',
   wakeSettings: 'amu-battle-station:wake-settings',
   dailyWakeState: 'amu-battle-station:daily-wake-state',
+  settings: 'amu-battle-station:settings',
   xianyuRecords: 'amu-battle-station:xianyu-records',
   bodyRecords: 'amu-battle-station:body-records',
   financeAssets: 'amu-battle-station:finance-assets',
@@ -51,6 +52,7 @@ const DEFAULT_TASK_TITLES = new Set([
   '检查资产仓位是否越界',
   '今天不因情绪追涨杀跌',
   '填写每日复盘',
+  '记录今日自律状态',
   '记录是否破戒、摆烂、熬夜或拖延',
 ])
 
@@ -119,6 +121,18 @@ function toDateMap(value) {
   return isPlainObject(value) ? value : {}
 }
 
+export function normalizeAppSettings(settings, source = {}) {
+  const normalized = isPlainObject(settings) ? settings : {}
+
+  return {
+    ...normalized,
+    privacyMode: Boolean(normalized.privacyMode ?? source.privacyMode ?? true),
+    bodyPublicView: Boolean(
+      normalized.bodyPublicView ?? source.bodyPublicView ?? false,
+    ),
+  }
+}
+
 function toAssetList(value, fallbackAssets) {
   return Array.isArray(value) ? value : fallbackAssets
 }
@@ -149,13 +163,19 @@ function hasMeaningfulTasks(tasksByDate) {
   return Object.values(tasksByDate).some((tasks) =>
     Array.isArray(tasks)
       ? tasks.length !== DEFAULT_TASK_TITLES.size ||
-        tasks.some((task) => Boolean(task?.done) || !DEFAULT_TASK_TITLES.has(String(task?.title ?? '')))
+        tasks.some(
+          (task) =>
+            Boolean(task?.done) ||
+            !DEFAULT_TASK_TITLES.has(String(task?.title ?? '')),
+        )
       : false,
   )
 }
 
 function hasOperationRecords(opsByDate) {
-  return Object.values(opsByDate).some((records) => Array.isArray(records) && records.length > 0)
+  return Object.values(opsByDate).some(
+    (records) => Array.isArray(records) && records.length > 0,
+  )
 }
 
 function hasMeaningfulBodyRecords(bodyByDate) {
@@ -197,20 +217,43 @@ export function migrateLearningRecord(record) {
   }
 
   const next = { ...record }
-  fillIfEmpty(next, 'topic', firstStoredValue(record, ['topic', 'learningTopic', '今日学习 / 沉淀主题', '今日学习主题']))
-  fillIfEmpty(next, 'output', firstStoredValue(record, ['output', 'learningOutput', '今日学习产出', '今日学习产出，可选']))
+  fillIfEmpty(
+    next,
+    'topic',
+    firstStoredValue(record, [
+      'topic',
+      'learningTopic',
+      '今日学习 / 沉淀主题',
+      '今日学习主题',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'output',
+    firstStoredValue(record, [
+      'output',
+      'learningOutput',
+      '今日学习产出',
+      '今日学习产出，可选',
+    ]),
+  )
 
   return {
     ...next,
     topic: String(next.topic ?? ''),
     output: String(next.output ?? ''),
-    ...(next.completed === undefined ? {} : { completed: Boolean(next.completed) }),
+    ...(next.completed === undefined
+      ? {}
+      : { completed: Boolean(next.completed) }),
   }
 }
 
 export function migrateLearningRecordsMap(recordsByDate) {
   return Object.fromEntries(
-    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateLearningRecord(record)]),
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [
+      dateKey,
+      migrateLearningRecord(record),
+    ]),
   )
 }
 
@@ -219,7 +262,14 @@ export function migrateXianyuRecord(record, dateKey = '') {
 
   const next = { ...record }
   const date = firstStoredValue(record, ['date', '日期']) || dateKey
-  const views = firstStoredValue(record, ['views', 'browse', 'viewCount', 'browseCount', '浏览量', '浏览'])
+  const views = firstStoredValue(record, [
+    'views',
+    'browse',
+    'viewCount',
+    'browseCount',
+    '浏览量',
+    '浏览',
+  ])
 
   fillIfEmpty(next, 'date', date)
 
@@ -233,13 +283,17 @@ export function migrateXianyuRecordsMap(recordsByDate) {
   return Object.fromEntries(
     Object.entries(toDateMap(recordsByDate)).map(([dateKey, records]) => [
       dateKey,
-      Array.isArray(records) ? records.map((record) => migrateXianyuRecord(record, dateKey)) : records,
+      Array.isArray(records)
+        ? records.map((record) => migrateXianyuRecord(record, dateKey))
+        : records,
     ]),
   )
 }
 
 function migrateXianyuRecordsList(records) {
-  return Array.isArray(records) ? records.map((record) => migrateXianyuRecord(record)) : records
+  return Array.isArray(records)
+    ? records.map((record) => migrateXianyuRecord(record))
+    : records
 }
 
 function xianyuRecordsListToDateMap(records) {
@@ -258,21 +312,30 @@ function xianyuRecordsListToDateMap(records) {
 }
 
 function toXianyuRecordsMap(value) {
-  return Array.isArray(value) ? xianyuRecordsListToDateMap(value) : migrateXianyuRecordsMap(toDateMap(value))
+  return Array.isArray(value)
+    ? xianyuRecordsListToDateMap(value)
+    : migrateXianyuRecordsMap(toDateMap(value))
 }
 
 function hasMeaningfulLearningRecords(learningRecords) {
   return Object.values(toDateMap(learningRecords)).some((record) => {
     const normalized = migrateLearningRecord(record)
-    return hasStoredValue(normalized.topic) || hasStoredValue(normalized.output) || Boolean(normalized.completed)
+    return (
+      hasStoredValue(normalized.topic) ||
+      hasStoredValue(normalized.output) ||
+      Boolean(normalized.completed)
+    )
   })
 }
 
 function hasMeaningfulReminderData(state) {
   return Boolean(
-    JSON.stringify(state.reminderRules) !== JSON.stringify(normalizeReminderRules(undefined)) ||
-      Object.keys(normalizeDailyReminderState(state.dailyReminderState)).length ||
-      JSON.stringify(state.wakeSettings) !== JSON.stringify(normalizeWakeSettings(undefined)) ||
+    JSON.stringify(state.reminderRules) !==
+      JSON.stringify(normalizeReminderRules(undefined)) ||
+      Object.keys(normalizeDailyReminderState(state.dailyReminderState))
+        .length ||
+      JSON.stringify(state.wakeSettings) !==
+        JSON.stringify(normalizeWakeSettings(undefined)) ||
       Object.keys(normalizeDailyWakeState(state.dailyWakeState)).length,
   )
 }
@@ -292,26 +355,39 @@ function hasMeaningfulReviewRecords(reviewByDate) {
 
 export function normalizeAppState(state, fallbackAssets = []) {
   const source = isPlainObject(state) ? state : {}
-  const settings = isPlainObject(source.settings) ? source.settings : {}
+  const settings = normalizeAppSettings(source.settings, source)
 
   return {
     schemaVersion: APP_STATE_SCHEMA_VERSION,
-    updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt : new Date().toISOString(),
+    updatedAt:
+      typeof source.updatedAt === 'string'
+        ? source.updatedAt
+        : new Date().toISOString(),
     tasks: migrateTasksMap(toDateMap(source.tasks ?? source.tasksByDate)),
     xianyuRecords: toXianyuRecordsMap(source.xianyuRecords ?? source.opsByDate),
-    bodyRecords: migrateBodyRecordsMap(toDateMap(source.bodyRecords ?? source.bodyByDate)),
-    financeAssets: migrateFinanceAssets(toAssetList(source.financeAssets ?? source.assets, fallbackAssets)),
-    reviewRecords: migrateReviewRecordsMap(toDateMap(source.reviewRecords ?? source.reviewByDate)),
-    learningTopics: toDateMap(source.learningTopics ?? source.learningTopicsByDate),
-    learningRecords: migrateLearningRecordsMap(source.learningRecords ?? source.learningRecordsByDate ?? source.learningTopics ?? source.learningTopicsByDate),
+    bodyRecords: migrateBodyRecordsMap(
+      toDateMap(source.bodyRecords ?? source.bodyByDate),
+    ),
+    financeAssets: migrateFinanceAssets(
+      toAssetList(source.financeAssets ?? source.assets, fallbackAssets),
+    ),
+    reviewRecords: migrateReviewRecordsMap(
+      toDateMap(source.reviewRecords ?? source.reviewByDate),
+    ),
+    learningTopics: toDateMap(
+      source.learningTopics ?? source.learningTopicsByDate,
+    ),
+    learningRecords: migrateLearningRecordsMap(
+      source.learningRecords ??
+        source.learningRecordsByDate ??
+        source.learningTopics ??
+        source.learningTopicsByDate,
+    ),
     reminderRules: normalizeReminderRules(source.reminderRules),
     dailyReminderState: normalizeDailyReminderState(source.dailyReminderState),
     wakeSettings: normalizeWakeSettings(source.wakeSettings),
     dailyWakeState: normalizeDailyWakeState(source.dailyWakeState),
-    settings: {
-      ...settings,
-      privacyMode: Boolean(settings.privacyMode ?? source.privacyMode ?? true),
-    },
+    settings,
   }
 }
 
@@ -322,17 +398,56 @@ export function migrateBodyRecord(record) {
 
   fillIfEmpty(next, 'date', firstStoredValue(record, ['date', '日期']))
   fillIfEmpty(next, 'weight', firstStoredValue(record, ['weight', '体重']))
-  fillIfEmpty(next, 'bedTime', firstStoredValue(record, ['bedTime', 'sleepTime', 'startSleepTime', '上床时间']))
-  fillIfEmpty(next, 'wakeTime', firstStoredValue(record, ['wakeTime', 'endSleepTime', 'wakeUpTime', '起床时间']))
-  fillIfEmpty(next, 'sleepHours', firstStoredValue(record, ['sleepHours', '睡眠小时']))
+  fillIfEmpty(
+    next,
+    'bedTime',
+    firstStoredValue(record, [
+      'bedTime',
+      'sleepTime',
+      'startSleepTime',
+      '上床时间',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'wakeTime',
+    firstStoredValue(record, [
+      'wakeTime',
+      'endSleepTime',
+      'wakeUpTime',
+      '起床时间',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'sleepHours',
+    firstStoredValue(record, ['sleepHours', '睡眠小时']),
+  )
   fillIfEmpty(next, 'lunch', firstStoredValue(record, ['lunch', '中餐']))
   fillIfEmpty(next, 'dinner', firstStoredValue(record, ['dinner', '晚餐']))
-  fillIfEmpty(next, 'note', firstStoredValue(record, ['note', '身体备注', '备注']))
+  fillIfEmpty(
+    next,
+    'note',
+    firstStoredValue(record, ['note', '身体备注', '备注']),
+  )
 
-  const legacySnack = firstStoredValue(record, ['legacySnack', 'snack', 'extraMeal', '加餐'])
+  const legacySnack = firstStoredValue(record, [
+    'legacySnack',
+    'snack',
+    'extraMeal',
+    '加餐',
+  ])
   fillIfEmpty(next, 'legacySnack', legacySnack)
-  fillIfEmpty(next, 'afternoonSnack', firstStoredValue(record, ['afternoonSnack', '下午加餐', '下午加']))
-  fillIfEmpty(next, 'eveningSnack', firstStoredValue(record, ['eveningSnack', '晚上加餐', '晚上加']))
+  fillIfEmpty(
+    next,
+    'afternoonSnack',
+    firstStoredValue(record, ['afternoonSnack', '下午加餐', '下午加']),
+  )
+  fillIfEmpty(
+    next,
+    'eveningSnack',
+    firstStoredValue(record, ['eveningSnack', '晚上加餐', '晚上加']),
+  )
 
   if (!hasStoredValue(next.afternoonSnack) && hasStoredValue(legacySnack)) {
     next.afternoonSnack = legacySnack
@@ -342,15 +457,31 @@ export function migrateBodyRecord(record) {
   next.eveningSnack = next.eveningSnack ?? ''
   next.legacySnack = next.legacySnack ?? ''
 
-  fillIfEmpty(next, 'exerciseText', firstStoredValue(record, ['exerciseText', '运动记录']))
+  fillIfEmpty(
+    next,
+    'exerciseText',
+    firstStoredValue(record, ['exerciseText', '运动记录']),
+  )
 
-  if (!hasStoredValue(next.exerciseText) && hasStoredValue(record.exercise) && record.exercise !== '未记录') {
+  if (
+    !hasStoredValue(next.exerciseText) &&
+    hasStoredValue(record.exercise) &&
+    record.exercise !== '未记录'
+  ) {
     next.exerciseText = record.exercise
   }
 
-  next.relapseStatus = normalizeRelapseStatus(firstStoredValue(next, ['relapseStatus', '是否破戒']))
-  next.relapseTypes = normalizeRelapseTypes(firstStoredValue(next, ['relapseTypes', '破戒类型']))
-  fillIfEmpty(next, 'relapseNote', firstStoredValue(record, ['relapseNote', '破戒备注']))
+  next.relapseStatus = normalizeRelapseStatus(
+    firstStoredValue(next, ['relapseStatus', '是否破戒']),
+  )
+  next.relapseTypes = normalizeRelapseTypes(
+    firstStoredValue(next, ['relapseTypes', '破戒类型']),
+  )
+  fillIfEmpty(
+    next,
+    'relapseNote',
+    firstStoredValue(record, ['relapseNote', '破戒备注']),
+  )
   next.relapseNote = next.relapseNote ?? ''
 
   return {
@@ -365,13 +496,55 @@ export function migrateReviewRecord(record) {
   const next = { ...record }
 
   fillIfEmpty(next, 'date', firstStoredValue(record, ['date', '日期']))
-  fillIfEmpty(next, 'importantThing', firstStoredValue(record, ['importantThing', '今天最重要的一件事', 'valuableThing', '今天最值钱的一件事']))
-  fillIfEmpty(next, 'valuableThing', firstStoredValue(record, ['valuableThing', '今天最值钱的一件事', 'importantThing', '今天最重要的一件事']))
-  fillIfEmpty(next, 'stupidThing', firstStoredValue(record, ['stupidThing', '今天最蠢的一件事']))
-  fillIfEmpty(next, 'unfinishedReason', firstStoredValue(record, ['unfinishedReason', '今天为什么没完成']))
-  fillIfEmpty(next, 'tomorrowTop3', firstStoredValue(record, ['tomorrowTop3', '明天最重要 3 件事', '明天最重要的三件事']))
-  fillIfEmpty(next, 'discipline', firstStoredValue(record, ['discipline', '今天有没有破戒或摆烂']))
-  fillIfEmpty(next, 'biggestRisk', firstStoredValue(record, ['biggestRisk', '今天最大风险是什么']))
+  fillIfEmpty(
+    next,
+    'importantThing',
+    firstStoredValue(record, [
+      'importantThing',
+      '今天最重要的一件事',
+      'valuableThing',
+      '今天最值钱的一件事',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'valuableThing',
+    firstStoredValue(record, [
+      'valuableThing',
+      '今天最值钱的一件事',
+      'importantThing',
+      '今天最重要的一件事',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'stupidThing',
+    firstStoredValue(record, ['stupidThing', '今天最蠢的一件事']),
+  )
+  fillIfEmpty(
+    next,
+    'unfinishedReason',
+    firstStoredValue(record, ['unfinishedReason', '今天为什么没完成']),
+  )
+  fillIfEmpty(
+    next,
+    'tomorrowTop3',
+    firstStoredValue(record, [
+      'tomorrowTop3',
+      '明天最重要 3 件事',
+      '明天最重要的三件事',
+    ]),
+  )
+  fillIfEmpty(
+    next,
+    'discipline',
+    firstStoredValue(record, ['discipline', '今天有没有破戒或摆烂']),
+  )
+  fillIfEmpty(
+    next,
+    'biggestRisk',
+    firstStoredValue(record, ['biggestRisk', '今天最大风险是什么']),
+  )
 
   return {
     schemaVersion: APP_STATE_SCHEMA_VERSION,
@@ -398,19 +571,28 @@ export function migrateFinanceAsset(asset) {
 
 export function migrateTasksMap(tasksByDate) {
   return Object.fromEntries(
-    Object.entries(toDateMap(tasksByDate)).map(([dateKey, tasks]) => [dateKey, Array.isArray(tasks) ? tasks.map((task) => ({ ...task })) : tasks]),
+    Object.entries(toDateMap(tasksByDate)).map(([dateKey, tasks]) => [
+      dateKey,
+      Array.isArray(tasks) ? tasks.map((task) => ({ ...task })) : tasks,
+    ]),
   )
 }
 
 export function migrateBodyRecordsMap(recordsByDate) {
   return Object.fromEntries(
-    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateBodyRecord({ date: dateKey, ...record })]),
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [
+      dateKey,
+      migrateBodyRecord({ date: dateKey, ...record }),
+    ]),
   )
 }
 
 export function migrateReviewRecordsMap(recordsByDate) {
   return Object.fromEntries(
-    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [dateKey, migrateReviewRecord({ date: dateKey, ...record })]),
+    Object.entries(toDateMap(recordsByDate)).map(([dateKey, record]) => [
+      dateKey,
+      migrateReviewRecord({ date: dateKey, ...record }),
+    ]),
   )
 }
 
@@ -425,6 +607,7 @@ export function createAppStateSnapshot({
   financeAssets,
   reviewByDate,
   privacyMode,
+  bodyPublicView,
   learningTopicsByDate,
   learningRecordsByDate,
   reminderRules,
@@ -445,7 +628,7 @@ export function createAppStateSnapshot({
     dailyReminderState,
     wakeSettings,
     dailyWakeState,
-    settings: { privacyMode },
+    settings: { privacyMode, bodyPublicView },
   })
 }
 
@@ -456,8 +639,12 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
   const financeAssets = readStorage(STORAGE_KEYS.assets, undefined)
   const reviewRecords = readStorage(STORAGE_KEYS.reviewByDate, undefined)
   const privacyMode = readStorage(STORAGE_KEYS.privacyMode, true)
+  const settings = readStorage(STORAGE_KEYS.settings, {})
   const learningTopics = readStorage(STORAGE_KEYS.learningTopicsByDate, {})
-  const learningRecords = readStorage(STORAGE_KEYS.learningRecordsByDate, undefined)
+  const learningRecords = readStorage(
+    STORAGE_KEYS.learningRecordsByDate,
+    undefined,
+  )
   const reminderRules = readStorage(STORAGE_KEYS.reminderRules, undefined)
   const dailyReminderState = readStorage(STORAGE_KEYS.dailyReminderState, {})
   const wakeSettings = readStorage(STORAGE_KEYS.wakeSettings, undefined)
@@ -467,16 +654,23 @@ export function migrateLocalStorageToAppState(fallbackAssets = []) {
     {
       tasks: toDateMap(tasks ?? migrateTasksByDate()),
       xianyuRecords: toDateMap(xianyuRecords ?? migrateOpsByDate()),
-      bodyRecords: toDateMap(bodyRecords ?? migrateDateMap(STORAGE_KEYS.bodyRecords)),
-      financeAssets: toAssetList(financeAssets ?? migrateAssets(fallbackAssets), fallbackAssets),
-      reviewRecords: toDateMap(reviewRecords ?? migrateDateMap(STORAGE_KEYS.reviewRecords)),
+      bodyRecords: toDateMap(
+        bodyRecords ?? migrateDateMap(STORAGE_KEYS.bodyRecords),
+      ),
+      financeAssets: toAssetList(
+        financeAssets ?? migrateAssets(fallbackAssets),
+        fallbackAssets,
+      ),
+      reviewRecords: toDateMap(
+        reviewRecords ?? migrateDateMap(STORAGE_KEYS.reviewRecords),
+      ),
       learningTopics: toDateMap(learningTopics),
       learningRecords: toDateMap(learningRecords ?? learningTopics),
       reminderRules,
       dailyReminderState,
       wakeSettings,
       dailyWakeState,
-      settings: { privacyMode },
+      settings: { ...settings, privacyMode },
     },
     fallbackAssets,
   )
@@ -491,6 +685,7 @@ export function writeAppStateToLocalStorage(state, fallbackAssets = []) {
   writeStorage(STORAGE_KEYS.assets, normalized.financeAssets)
   writeStorage(STORAGE_KEYS.reviewByDate, normalized.reviewRecords)
   writeStorage(STORAGE_KEYS.privacyMode, normalized.settings.privacyMode)
+  writeStorage(STORAGE_KEYS.settings, normalized.settings)
   writeStorage(STORAGE_KEYS.learningTopicsByDate, normalized.learningTopics)
   writeStorage(STORAGE_KEYS.learningRecordsByDate, normalized.learningRecords)
   writeStorage(STORAGE_KEYS.reminderRules, normalized.reminderRules)
@@ -549,9 +744,12 @@ export function createProjectBackupPayload() {
   })
 
   data[STORAGE_KEYS.opsByDate] = appState.xianyuRecords
+  data[STORAGE_KEYS.settings] = appState.settings
 
   if (data[STORAGE_KEYS.xianyuRecords] !== undefined) {
-    data[STORAGE_KEYS.xianyuRecords] = Object.values(appState.xianyuRecords).flat()
+    data[STORAGE_KEYS.xianyuRecords] = Object.values(
+      appState.xianyuRecords,
+    ).flat()
   }
 
   return {
@@ -566,7 +764,9 @@ export function createProjectBackupPayload() {
 
 function normalizeBackupEntryValue(key, value) {
   if (key === STORAGE_KEYS.opsByDate) {
-    return Array.isArray(value) ? xianyuRecordsListToDateMap(value) : migrateXianyuRecordsMap(value)
+    return Array.isArray(value)
+      ? xianyuRecordsListToDateMap(value)
+      : migrateXianyuRecordsMap(value)
   }
 
   if (key === STORAGE_KEYS.xianyuRecords) {
@@ -581,7 +781,10 @@ export function restoreProjectBackupPayload(payload) {
     payload?.data ||
     (payload?.rawLocalStorage && typeof payload.rawLocalStorage === 'object'
       ? Object.fromEntries(
-          Object.entries(payload.rawLocalStorage).map(([key, raw]) => [key, parseBackupValue(raw)]),
+          Object.entries(payload.rawLocalStorage).map(([key, raw]) => [
+            key,
+            parseBackupValue(raw),
+          ]),
         )
       : null)
 
@@ -589,14 +792,19 @@ export function restoreProjectBackupPayload(payload) {
     throw new Error('备份文件格式不正确。')
   }
 
-  const entries = Object.entries(data).filter(([key]) => key.startsWith(STORAGE_PREFIX))
+  const entries = Object.entries(data).filter(([key]) =>
+    key.startsWith(STORAGE_PREFIX),
+  )
 
   readProjectKeys().forEach((key) => {
     window.localStorage.removeItem(key)
   })
 
   entries.forEach(([key, value]) => {
-    window.localStorage.setItem(key, JSON.stringify(normalizeBackupEntryValue(key, value)))
+    window.localStorage.setItem(
+      key,
+      JSON.stringify(normalizeBackupEntryValue(key, value)),
+    )
   })
 }
 
@@ -639,7 +847,9 @@ export function migrateOpsByDate() {
 
 export function migrateDateMap(legacyKey) {
   const legacyMap = readStorage(legacyKey, {})
-  return legacyMap && typeof legacyMap === 'object' && !Array.isArray(legacyMap) ? legacyMap : {}
+  return legacyMap && typeof legacyMap === 'object' && !Array.isArray(legacyMap)
+    ? legacyMap
+    : {}
 }
 
 export function migrateAssets(fallbackAssets) {
@@ -649,7 +859,9 @@ export function migrateAssets(fallbackAssets) {
 export function useStoredState(key, fallback, migrateValue = (value) => value) {
   const fallbackRef = useRef(fallback)
   const migrateRef = useRef(migrateValue)
-  const [value, setValue] = useState(() => migrateValue(readStorage(key, fallback)))
+  const [value, setValue] = useState(() =>
+    migrateValue(readStorage(key, fallback)),
+  )
 
   useEffect(() => {
     fallbackRef.current = fallback

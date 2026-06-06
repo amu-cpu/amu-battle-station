@@ -148,7 +148,7 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-black text-slate-950">{item.date}</h3>
                   <Badge tone={item.discipline === '有' ? 'danger' : item.discipline === '没有' ? 'success' : 'neutral'}>
-                    破戒/摆烂：{item.discipline || '未记录'}
+                    自律状态：{item.discipline || '未记录'}
                   </Badge>
                 </div>
                 <div className="grid gap-2 text-sm text-slate-700 md:grid-cols-2">
@@ -174,7 +174,7 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
                         {item.unfinishedReason || '-'}
                       </p>
                       <p>
-                        <span className="font-bold text-slate-950">破戒/摆烂：</span>
+                        <span className="font-bold text-slate-950">自律状态：</span>
                         {item.discipline || '-'}
                       </p>
                       <p>

@@ -220,6 +220,7 @@ export function applyTaskAutomation(tasks, { operationSummary, bodyRecord, revie
       case '填写每日复盘':
         autoDone = hasReviewCore(reviewRecord)
         break
+      case '记录今日自律状态':
       case '记录是否破戒、摆烂、熬夜或拖延':
         autoDone = Boolean((reviewRecord?.discipline && reviewRecord.discipline !== '未记录') || getRelapseStatus(bodyRecord) !== 'unrecorded')
         break

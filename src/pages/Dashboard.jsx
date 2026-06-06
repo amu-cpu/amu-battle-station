@@ -132,11 +132,11 @@ export default function Dashboard({
 
     const relapseStatus = getRelapseStatus(bodyRecord)
     if (relapseStatus === 'unrecorded') {
-      alerts.push({ tone: 'warning', text: '今天还没记录是否破戒。' })
+      alerts.push({ tone: 'warning', text: '今天还没记录自律状态。' })
     }
 
     if (relapseStatus === 'yes') {
-      alerts.push({ tone: 'danger', text: '今天已破戒，晚上复盘原因。' })
+      alerts.push({ tone: 'danger', text: '今天自律状态异常，晚上复盘原因。' })
     }
 
     if (operationSummary.recordCount === 0) {
@@ -361,7 +361,7 @@ export default function Dashboard({
       </div>
 
       <Card title="今日督促" eyebrow="Reminder">
-        <div className="grid gap-2 md:grid-cols-5">
+        <div className="grid gap-2 md:grid-cols-4">
           {reminderSummary.map((item) => (
             <div key={item.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs font-bold text-slate-500">{item.title}</p>
@@ -391,7 +391,7 @@ export default function Dashboard({
             <StatItem label="实际起床" value={wakeSummary.actualWakeTime || '未记录'} />
             <StatItem label="起床状态" value={WAKE_STATUS_LABELS[wakeSummary.status]} />
             <StatItem label="运动" value={bodyRecord.exerciseText || (bodyRecord.exercise && bodyRecord.exercise !== '未记录' ? bodyRecord.exercise : '未记录')} />
-            <StatItem label="破戒" value={getRelapseLabel(bodyRecord)} />
+            <StatItem label="自律状态" value={getRelapseLabel(bodyRecord)} />
             <StatItem label="身体分" value={`${scores.bodyScore}/100`} />
           </div>
         </Card>

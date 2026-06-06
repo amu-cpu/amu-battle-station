@@ -13,12 +13,23 @@ const DEFAULT_TASKS = [
   ['资金', '检查资产仓位是否越界'],
   ['资金', '今天不因情绪追涨杀跌'],
   ['复盘', '填写每日复盘'],
-  ['复盘', '记录是否破戒、摆烂、熬夜或拖延'],
+  ['复盘', '记录今日自律状态'],
 ]
 
-export const DEFAULT_SHOPS = ['商业计划书阿木「安卓」', '阿木可研计划书顾问「苹果」']
+export const DEFAULT_SHOPS = [
+  '商业计划书阿木「安卓」',
+  '阿木可研计划书顾问「苹果」',
+]
 
-export const EXERCISE_OPTIONS = ['俯卧撑', '步行', '跑步机', '羽毛球', '骑车', '拉伸', '其他']
+export const EXERCISE_OPTIONS = [
+  '俯卧撑',
+  '步行',
+  '跑步机',
+  '羽毛球',
+  '骑车',
+  '拉伸',
+  '其他',
+]
 
 export const RELAPSE_STATUS_OPTIONS = [
   { value: 'unrecorded', label: '未记录' },
@@ -26,17 +37,18 @@ export const RELAPSE_STATUS_OPTIONS = [
   { value: 'yes', label: '是' },
 ]
 
-export const RELAPSE_TYPE_OPTIONS = ['熬夜', '暴食', '乱刷短视频', '拖延', '情绪失控', '其他']
+export const RELAPSE_TYPE_OPTIONS = [
+  '熬夜',
+  '暴食',
+  '乱刷短视频',
+  '拖延',
+  '情绪失控',
+  '其他',
+]
 
 export const DISCIPLINE_OPTIONS = ['未记录', '没有', '有']
 
 export const defaultReminderRules = [
-  {
-    id: 'wake',
-    title: '起床',
-    times: ['11:40', '12:00', '12:20'],
-    active: true,
-  },
   {
     id: 'xianyu',
     title: '养号',

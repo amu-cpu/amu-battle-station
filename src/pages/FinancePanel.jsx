@@ -6,7 +6,13 @@ import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
 import ScoreCard from '../components/ScoreCard'
-import { calculateFinanceTotal, formatCurrency, formatPercent, getAssetStatus, toNumber } from '../utils/scoring'
+import {
+  calculateFinanceTotal,
+  formatCurrency,
+  formatPercent,
+  getAssetStatus,
+  toNumber,
+} from '../utils/scoring'
 
 const emptyAsset = {
   name: '',
@@ -41,7 +47,12 @@ function parseCellValue(field, value) {
   return { ok: true, value }
 }
 
-export default function FinancePanel({ assets, setAssets, privacyMode, setPrivacyMode }) {
+export default function FinancePanel({
+  assets,
+  setAssets,
+  privacyMode,
+  setPrivacyMode,
+}) {
   const [form, setForm] = useState(emptyAsset)
   const [emotionVisible, setEmotionVisible] = useState(false)
   const [editingCell, setEditingCell] = useState(null)
@@ -50,7 +61,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
   const cancelBlurRef = useRef(false)
   const total = calculateFinanceTotal(assets)
   const rows = useMemo(
-    () => assets.map((asset, index) => ({ ...asset, __index: index, ...getAssetStatus(asset, total) })),
+    () =>
+      assets.map((asset, index) => ({
+        ...asset,
+        __index: index,
+        ...getAssetStatus(asset, total),
+      })),
     [assets, total],
   )
   const highCount = rows.filter((row) => row.status === '偏高').length
@@ -80,7 +96,10 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
     if (!name) return
 
     const payload = { ...form, name }
-    setAssets((current) => [...current, { ...payload, id: `asset-${Date.now()}` }])
+    setAssets((current) => [
+      ...current,
+      { ...payload, id: `asset-${Date.now()}` },
+    ])
     resetForm()
   }
 
@@ -135,7 +154,9 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
   }
 
   function exportFinanceExcel() {
-    const confirmed = window.confirm('导出 Excel 将包含全部资产真实金额，是否继续？')
+    const confirmed = window.confirm(
+      '导出 Excel 将包含全部资产真实金额，是否继续？',
+    )
     if (!confirmed) return
 
     const detailRows = rows.map((row) => ({
@@ -164,13 +185,22 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
     ]
 
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(detailRows), '资金状态明细')
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), '资金汇总')
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(detailRows),
+      '资金状态明细',
+    )
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(summaryRows),
+      '资金汇总',
+    )
     XLSX.writeFile(workbook, `amu-finance-radar-${localDateKey()}.xlsx`)
   }
 
   function renderEditableCell(row, field, displayValue, extraClassName = '') {
-    const isEditing = editingCell?.assetIndex === row.__index && editingCell.field === field
+    const isEditing =
+      editingCell?.assetIndex === row.__index && editingCell.field === field
     const disabled = field === 'amount' && privacyMode
 
     if (isEditing) {
@@ -182,7 +212,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             min={numberFields.includes(field) ? '0' : undefined}
             step={numberFields.includes(field) ? '0.1' : undefined}
             value={editingCell.value}
-            onChange={(event) => setEditingCell((current) => ({ ...current, value: event.target.value }))}
+            onChange={(event) =>
+              setEditingCell((current) => ({
+                ...current,
+                value: event.target.value,
+              }))
+            }
             onBlur={handleCellBlur}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -208,9 +243,13 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
           onClick={() => startCellEdit(row, field)}
           disabled={disabled}
           className={`w-full rounded-md px-2 py-2 text-left transition ${
-            disabled ? 'cursor-default text-slate-700' : 'hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200'
+            disabled
+              ? 'cursor-default text-slate-700'
+              : 'hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200'
           }`}
-          title={disabled ? '隐私模式下金额不可编辑，先点击显示金额' : '点击编辑'}
+          title={
+            disabled ? '隐私模式下金额不可编辑，先点击显示金额' : '点击编辑'
+          }
         >
           {displayValue}
         </button>
@@ -224,8 +263,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-500">资金雷达台</p>
-            <h1 className="mt-2 text-3xl font-black text-slate-950">只做记录和提醒，不给投资建议</h1>
-            <p className="mt-2 text-sm text-slate-600">根据你手动填写的金额和上下限，判断仓位是否越界。</p>
+            <h1 className="mt-2 text-3xl font-black text-slate-950">
+              只做记录和提醒，不给投资建议
+            </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              根据你手动填写的金额和上下限，判断仓位是否越界。
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:mt-1 sm:justify-end">
             <Button type="button" icon={Download} onClick={exportFinanceExcel}>
@@ -250,15 +293,40 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <ScoreCard label="总资产" value={moneyText(total)} detail="手动记录合计" tone="green" />
-        <ScoreCard label="资产数量" value={assets.length} detail="可新增、点击表格编辑" />
-        <ScoreCard label="偏高资产" value={highCount} detail="超过上限要控制" tone={highCount ? 'red' : 'green'} />
-        <ScoreCard label="偏低资产" value={lowCount} detail="低于下限仅提醒关注" tone={lowCount ? 'yellow' : 'green'} />
+        <ScoreCard
+          label="总资产"
+          value={moneyText(total)}
+          detail="手动记录合计"
+          tone="green"
+        />
+        <ScoreCard
+          label="资产数量"
+          value={assets.length}
+          detail="可新增、点击表格编辑"
+        />
+        <ScoreCard
+          label="偏高资产"
+          value={highCount}
+          detail="超过上限要控制"
+          tone={highCount ? 'red' : 'green'}
+        />
+        <ScoreCard
+          label="偏低资产"
+          value={lowCount}
+          detail="低于下限仅提醒关注"
+          tone={lowCount ? 'yellow' : 'green'}
+        />
       </div>
 
       <Card title="新增资产" eyebrow="Record">
         <form onSubmit={saveAsset} className="grid gap-3 xl:grid-cols-8">
-          <Input label="资产名称" value={form.name} onChange={(event) => updateField('name', event.target.value)} placeholder="例如：现金池" className="xl:col-span-2" />
+          <Input
+            label="资产名称"
+            value={form.name}
+            onChange={(event) => updateField('name', event.target.value)}
+            placeholder="例如：现金池"
+            className="xl:col-span-2"
+          />
           <Input
             label="当前金额"
             type={privacyMode ? 'password' : 'number'}
@@ -267,10 +335,36 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             onChange={(event) => updateField('amount', event.target.value)}
             autoComplete="off"
           />
-          <Input label="目标占比" type="number" min="0" step="0.1" value={form.target} onChange={(event) => updateField('target', event.target.value)} />
-          <Input label="下限" type="number" min="0" step="0.1" value={form.lower} onChange={(event) => updateField('lower', event.target.value)} />
-          <Input label="上限" type="number" min="0" step="0.1" value={form.upper} onChange={(event) => updateField('upper', event.target.value)} />
-          <Input label="备注" value={form.note} onChange={(event) => updateField('note', event.target.value)} className="xl:col-span-6" />
+          <Input
+            label="目标占比"
+            type="number"
+            min="0"
+            step="0.1"
+            value={form.target}
+            onChange={(event) => updateField('target', event.target.value)}
+          />
+          <Input
+            label="下限"
+            type="number"
+            min="0"
+            step="0.1"
+            value={form.lower}
+            onChange={(event) => updateField('lower', event.target.value)}
+          />
+          <Input
+            label="上限"
+            type="number"
+            min="0"
+            step="0.1"
+            value={form.upper}
+            onChange={(event) => updateField('upper', event.target.value)}
+          />
+          <Input
+            label="备注"
+            value={form.note}
+            onChange={(event) => updateField('note', event.target.value)}
+            className="xl:col-span-6"
+          />
           <div className="flex flex-wrap gap-2 xl:col-span-2 xl:self-end">
             <Button type="submit" variant="primary" icon={Plus}>
               新增资产
@@ -283,7 +377,11 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
         title="仓位状态"
         eyebrow="Radar"
         action={
-          <Button type="button" variant="ghost" onClick={() => setEmotionVisible((value) => !value)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setEmotionVisible((value) => !value)}
+          >
             禁止情绪化操作
           </Button>
         }
@@ -312,9 +410,21 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
-                <tr key={row.id || `${row.name}-${row.__index}`} className="align-top hover:bg-slate-50/50">
-                  {renderEditableCell(row, 'name', row.name || '-', 'font-semibold text-slate-900')}
-                  {renderEditableCell(row, 'amount', privacyMode ? '****' : formatCurrency(row.amount))}
+                <tr
+                  key={row.id || `${row.name}-${row.__index}`}
+                  className="align-top hover:bg-slate-50/50"
+                >
+                  {renderEditableCell(
+                    row,
+                    'name',
+                    row.name || '-',
+                    'font-semibold text-slate-900',
+                  )}
+                  {renderEditableCell(
+                    row,
+                    'amount',
+                    privacyMode ? '****' : formatCurrency(row.amount),
+                  )}
                   <td className="py-3 pr-3">{formatPercent(row.ratio)}</td>
                   {renderEditableCell(row, 'target', formatPercent(row.target))}
                   {renderEditableCell(row, 'lower', formatPercent(row.lower))}
@@ -325,7 +435,12 @@ export default function FinancePanel({ assets, setAssets, privacyMode, setPrivac
                   <td className="py-3 pr-3">
                     <Badge tone={row.tone}>{row.action}</Badge>
                   </td>
-                  {renderEditableCell(row, 'note', row.note || '-', 'max-w-72 text-slate-600')}
+                  {renderEditableCell(
+                    row,
+                    'note',
+                    row.note || '-',
+                    'max-w-72 text-slate-600',
+                  )}
                   <td className="py-3 pr-3">
                     <button
                       type="button"
