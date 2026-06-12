@@ -11,6 +11,8 @@ import { REMINDER_STATUS_LABELS, timeToMinutes, WAKE_STATUS_LABELS } from '../ut
 import { formatCurrency, getRelapseLabel, getRelapseStatus } from '../utils/scoring'
 
 const REVIEW_TOMORROW_TOP3_SOURCE = 'reviewTomorrowTop3'
+const HIDDEN_DASHBOARD_TASK_CATEGORIES = new Set(['重点', '资金'])
+const DASHBOARD_TASK_CATEGORIES = TASK_CATEGORIES.filter((category) => !HIDDEN_DASHBOARD_TASK_CATEGORIES.has(category))
 const DEFAULT_LEARNING_TITLES = new Set([
   '学习 Codex 或代写运营知识 15 分钟',
   '整理 1 条可复用的代写方法或案例',
@@ -19,8 +21,8 @@ const DEFAULT_LEARNING_TITLES = new Set([
   '今日学习 / 沉淀待定',
 ])
 
-function groupTasks(tasks) {
-  return TASK_CATEGORIES.map((category) => ({
+function groupTasks(tasks, categories = TASK_CATEGORIES) {
+  return categories.map((category) => ({
     category,
     tasks: tasks.filter((task) => task.category === category),
   })).filter(({ tasks }) => tasks.length)
@@ -179,6 +181,7 @@ export default function Dashboard({
   bodyRecord,
   financeStatus,
   privacyMode,
+  setPrivacyMode,
   reviewRecord,
   hasReviewRecord,
   previousReviewTomorrowTop3,
@@ -192,22 +195,32 @@ export default function Dashboard({
   const [newTask, setNewTask] = useState({ category: '赚钱', title: '' })
   const [showAllTasks, setShowAllTasks] = useState(false)
   const [editingLearning, setEditingLearning] = useState(false)
+  const [selectedTaskCategory, setSelectedTaskCategory] = useState(null)
   const learningTasks = effectiveTasks.filter((task) => task.category === '学习')
   const defaultLearningTasks = learningTasks.filter((task) => DEFAULT_LEARNING_TITLES.has(task.title))
   const hasStoredLearningCompletion = Object.prototype.hasOwnProperty.call(learningRecord, 'completed')
   const learningCompleted = hasStoredLearningCompletion ? Boolean(learningRecord.completed) : defaultLearningTasks.some((task) => task.done)
   const displayTasks = useMemo(() => buildDisplayTasks(effectiveTasks, learningRecord), [effectiveTasks, learningRecord])
   const focusTasks = useMemo(() => displayTasks.filter(isReviewFocusTask).slice(0, 3), [displayTasks])
-  const groupedDisplayTasks = useMemo(() => displayTasks.filter((task) => !isReviewFocusTask(task)), [displayTasks])
-  const taskGroups = useMemo(() => groupTasks(groupedDisplayTasks), [groupedDisplayTasks])
-  const actionableUnfinishedTasks = useMemo(
-    () => groupedDisplayTasks.filter((task) => !task.done && !task.autoManaged).slice(0, 5),
-    [groupedDisplayTasks],
+  const dashboardDisplayTasks = useMemo(
+    () => displayTasks.filter((task) => !isReviewFocusTask(task) && !HIDDEN_DASHBOARD_TASK_CATEGORIES.has(task.category)),
+    [displayTasks],
   )
+  const taskGroups = useMemo(() => groupTasks(dashboardDisplayTasks, DASHBOARD_TASK_CATEGORIES), [dashboardDisplayTasks])
+  const actionableUnfinishedTasks = useMemo(
+    () => dashboardDisplayTasks.filter((task) => !task.done && !task.autoManaged).slice(0, 5),
+    [dashboardDisplayTasks],
+  )
+  const selectedCategoryTasks = useMemo(
+    () => (selectedTaskCategory ? dashboardDisplayTasks.filter((task) => task.category === selectedTaskCategory) : []),
+    [dashboardDisplayTasks, selectedTaskCategory],
+  )
+  const visibleSummaryTasks = selectedTaskCategory ? selectedCategoryTasks : actionableUnfinishedTasks
   const hasPreviousReviewPriority = hasReviewTomorrowTop3(previousReviewTomorrowTop3)
   const hasIncompleteFocusTask = focusTasks.some((task) => !task.done)
-  const completedCount = displayTasks.filter((task) => task.done).length
-  const completionRate = displayTasks.length ? Math.round((completedCount / displayTasks.length) * 100) : 0
+  const completedCount = [...focusTasks, ...dashboardDisplayTasks].filter((task) => task.done).length
+  const dashboardTaskCount = focusTasks.length + dashboardDisplayTasks.length
+  const completionRate = dashboardTaskCount ? Math.round((completedCount / dashboardTaskCount) * 100) : 0
   const learningSummary = learningRecord.topic?.trim() ? `已设置：${learningRecord.topic.trim()}` : '未设置'
 
   const riskAlerts = useMemo(() => {
@@ -261,11 +274,7 @@ export default function Dashboard({
       alerts.push({ tone: 'danger', text: '今天还没有运营记录，现金流动作断了。' })
     }
 
-    if (financeStatus.lowCount > 0) {
-      alerts.push({ tone: 'warning', text: '有资产低于下限，先观察，不要乱补。' })
-    }
-
-    if (!hasIncompleteFocusTask && displayTasks.some((task) => !task.done)) {
+    if (!hasIncompleteFocusTask && dashboardDisplayTasks.some((task) => !task.done)) {
       alerts.push({ tone: 'warning', text: '还有任务没完成，先收口今天的动作。' })
     }
 
@@ -273,8 +282,7 @@ export default function Dashboard({
   }, [
     bodyRecord,
     currentTime,
-    displayTasks,
-    financeStatus,
+    dashboardDisplayTasks,
     focusTasks.length,
     hasIncompleteFocusTask,
     hasPreviousReviewPriority,
@@ -356,7 +364,7 @@ export default function Dashboard({
 
       <section className="grid gap-4 xl:grid-cols-5">
         <ScoreCard compact label="今日作战分" value={scores.battleScore} detail="任务 45% / 身体 30% / 运营 25%" tone="green" />
-        <ScoreCard compact label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${displayTasks.length} 个动作`} />
+        <ScoreCard compact label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${dashboardTaskCount} 个动作`} />
         <ScoreCard compact label="运营分" value={scores.operationScore} detail={`收入 ${formatCurrency(operationSummary.income)}`} tone="cyan" />
         <ScoreCard compact label="身体分" value={scores.bodyScore} detail={`睡眠 ${bodyRecord?.sleepHours || 0} 小时`} />
         <ScoreCard compact label="风险提醒" value={riskAlerts.length} detail={riskAlerts.length ? '需要处理' : '暂时干净'} tone={riskAlerts.length ? 'yellow' : 'green'} />
@@ -391,31 +399,58 @@ export default function Dashboard({
           className="dashboard-card"
         >
           <div className="space-y-3">
-            <div className="grid grid-cols-5 gap-1.5">
-              {taskGroups.map(({ category, tasks: categoryTasks }) => (
-                <div key={category} className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1">
-                  <p className="truncate text-[11px] font-bold text-slate-500">{category}</p>
-                  <p className="mt-0.5 text-lg font-black text-slate-950">
+            <div className="grid grid-cols-4 gap-1.5">
+              {taskGroups.map(({ category, tasks: categoryTasks }) => {
+                const selected = selectedTaskCategory === category
+
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedTaskCategory((current) => (current === category ? null : category))}
+                    className={`min-w-0 rounded-lg border px-2 py-1 text-left transition ${
+                      selected
+                        ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                        : 'border-slate-200 bg-slate-50 text-slate-950 hover:border-slate-300 hover:bg-white'
+                    }`}
+                    aria-pressed={selected}
+                    title={`查看${category}任务`}
+                  >
+                    <p className={`truncate text-[11px] font-bold ${selected ? 'text-slate-200' : 'text-slate-500'}`}>{category}</p>
+                    <p className={`mt-0.5 text-lg font-black ${selected ? 'text-white' : 'text-slate-950'}`}>
                     {categoryTasks.filter((task) => task.done).length}/{categoryTasks.length}
-                  </p>
-                </div>
-              ))}
+                    </p>
+                  </button>
+                )
+              })}
             </div>
 
             <div>
               <div className="mb-1.5 flex items-center justify-between gap-3">
-                <h3 className="text-sm font-black text-slate-950">未完成任务 Top 5</h3>
-                <span className="hidden text-xs font-semibold text-slate-500 2xl:inline">默认只看可直接勾选的动作</span>
+                <h3 className="text-sm font-black text-slate-950">
+                  {selectedTaskCategory ? `${selectedTaskCategory}任务` : '未完成任务 Top 5'}
+                </h3>
+                {selectedTaskCategory ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTaskCategory(null)}
+                    className="text-xs font-bold text-slate-500 underline-offset-4 hover:text-slate-900 hover:underline"
+                  >
+                    默认
+                  </button>
+                ) : (
+                  <span className="hidden text-xs font-semibold text-slate-500 2xl:inline">点击分类卡片可筛选任务</span>
+                )}
               </div>
-              {actionableUnfinishedTasks.length ? (
+              {visibleSummaryTasks.length ? (
                 <div className="space-y-1.5">
-                  {actionableUnfinishedTasks.map((task) => (
-                    <TaskLine key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} showCategory compact />
+                  {visibleSummaryTasks.map((task) => (
+                    <TaskLine key={task.id} task={task} onToggle={toggleTask} onDelete={deleteTask} showCategory={!selectedTaskCategory} compact />
                   ))}
                 </div>
               ) : (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-                  当前没有可直接勾选的未完成任务。
+                  {selectedTaskCategory ? `当前没有${selectedTaskCategory}任务。` : '当前没有可直接勾选的未完成任务。'}
                 </div>
               )}
             </div>
@@ -468,7 +503,7 @@ export default function Dashboard({
                 onChange={(event) => setNewTask((current) => ({ ...current, category: event.target.value }))}
                 className="min-h-9 rounded-md border border-slate-200 bg-white px-3 py-1 text-sm font-semibold text-slate-950 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
               >
-                {TASK_CATEGORIES.map((category) => (
+                {DASHBOARD_TASK_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
                     {category}
                   </option>
@@ -568,7 +603,16 @@ export default function Dashboard({
           </div>
         </Card>
 
-        <Card title="资金概览" eyebrow="Finance" className="dashboard-card min-h-[190px]">
+        <Card
+          title="资金概览"
+          eyebrow="Finance"
+          action={
+            <Button type="button" className="min-h-8 px-2.5 py-1 text-xs" onClick={() => setPrivacyMode?.((value) => !value)}>
+              {privacyMode ? '显示金额' : '隐藏金额'}
+            </Button>
+          }
+          className="dashboard-card min-h-[190px]"
+        >
           <div className="grid grid-cols-2 gap-3">
             <DataItem label="总资产" value={privacyMode ? '****' : formatCurrency(financeStatus.total)} />
             <DataItem label="偏高" value={financeStatus.highCount} />

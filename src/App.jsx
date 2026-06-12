@@ -490,7 +490,8 @@ function App() {
   const operationScore = calculateOperationScore(operationSummary)
   const bodyScore = calculateBodyScore(bodyByDate[selectedDate] ? bodyRecord : null)
   const effectiveTasks = applyTaskAutomation(tasks, { operationSummary, bodyRecord, reviewRecord })
-  const taskScore = calculateTaskScore(effectiveTasks)
+  const dashboardScoreTasks = effectiveTasks.filter((task) => task.category !== '资金')
+  const taskScore = calculateTaskScore(dashboardScoreTasks)
   const battleScore = calculateBattleScore({ taskScore, bodyScore, operationScore })
   const operationDiagnosis = getOperationDiagnosis(operationSummary)
   const financeStatus = getFinanceStatusSummary(financeAssets)
@@ -771,6 +772,7 @@ function App() {
         hasBodyRecord={hasBodyRecord(bodyByDate[selectedDate])}
         financeStatus={financeStatus}
         privacyMode={privacyMode}
+        setPrivacyMode={setPrivacyMode}
         reviewRecord={reviewRecord}
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
         previousReviewDate={previousReviewDate}

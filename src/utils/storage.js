@@ -179,8 +179,7 @@ function assetsMatchFallback(assets, fallbackAssets) {
 function hasMeaningfulTasks(tasksByDate) {
   return Object.values(tasksByDate).some((tasks) =>
     Array.isArray(tasks)
-      ? tasks.length !== DEFAULT_TASK_TITLES.size ||
-        tasks.some(
+      ? tasks.some(
           (task) =>
             Boolean(task?.done) ||
             !DEFAULT_TASK_TITLES.has(String(task?.title ?? '')),
