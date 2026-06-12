@@ -50,7 +50,9 @@ export default function Layout({ activePage, onNavigate, children }) {
       </aside>
 
       <main className="min-h-svh w-full px-4 pb-28 pt-4 md:ml-60 md:w-[calc(100%-15rem)] md:px-6 md:pb-6 md:pt-5 xl:px-8">
-        <div className="mx-auto w-full max-w-[1600px]">{children}</div>
+        <div className={activePage === 'dashboard' ? 'w-full max-w-none' : 'mx-auto w-full max-w-[1600px]'}>
+          {children}
+        </div>
       </main>
 
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-2 py-2 backdrop-blur md:hidden">

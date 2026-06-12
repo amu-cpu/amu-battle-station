@@ -8,10 +8,10 @@ export default function ScoreCard({ label, value, detail, tone = 'slate', compac
   }
 
   return (
-    <div className={`rounded-lg border shadow-sm ${compact ? 'p-3' : 'p-4'} ${toneClasses[tone]}`}>
+    <div className={`rounded-lg border shadow-sm ${compact ? 'min-h-[104px] p-3' : 'p-4'} ${toneClasses[tone]}`}>
       <p className="text-sm font-semibold text-slate-600">{label}</p>
-      <p className={`${compact ? 'mt-1 text-2xl' : 'mt-2 text-3xl'} font-black leading-none`}>{value}</p>
-      {detail ? <p className={`${compact ? 'mt-1 text-xs' : 'mt-2 text-sm'} text-slate-600`}>{detail}</p> : null}
+      <p className={`${compact ? 'mt-2 text-[34px]' : 'mt-2 text-3xl'} font-black leading-none`}>{value}</p>
+      {detail ? <p className={`${compact ? 'mt-2 truncate text-xs' : 'mt-2 text-sm'} text-slate-600`} title={detail}>{detail}</p> : null}
     </div>
   )
 }

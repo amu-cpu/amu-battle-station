@@ -53,3 +53,12 @@ textarea {
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+.dashboard-shell .dashboard-card {
+  padding: 1.25rem;
+}
+
+.dashboard-shell .dashboard-card h2 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
