@@ -1,4 +1,4 @@
-export default function ScoreCard({ label, value, detail, tone = 'slate' }) {
+export default function ScoreCard({ label, value, detail, tone = 'slate', compact = false }) {
   const toneClasses = {
     slate: 'border-slate-200 bg-white text-slate-950',
     green: 'border-emerald-200 bg-emerald-50 text-emerald-900',
@@ -8,10 +8,10 @@ export default function ScoreCard({ label, value, detail, tone = 'slate' }) {
   }
 
   return (
-    <div className={`rounded-lg border p-4 shadow-sm ${toneClasses[tone]}`}>
+    <div className={`rounded-lg border shadow-sm ${compact ? 'p-3' : 'p-4'} ${toneClasses[tone]}`}>
       <p className="text-sm font-semibold text-slate-600">{label}</p>
-      <p className="mt-2 text-3xl font-black leading-none">{value}</p>
-      {detail ? <p className="mt-2 text-sm text-slate-600">{detail}</p> : null}
+      <p className={`${compact ? 'mt-1 text-2xl' : 'mt-2 text-3xl'} font-black leading-none`}>{value}</p>
+      {detail ? <p className={`${compact ? 'mt-1 text-xs' : 'mt-2 text-sm'} text-slate-600`}>{detail}</p> : null}
     </div>
   )
 }

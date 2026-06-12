@@ -69,8 +69,8 @@ export const defaultReminderRules = [
   },
   {
     id: 'sleep',
-    title: '睡觉',
-    times: ['02:00', '02:30', '03:00'],
+    title: '睡前收尾',
+    times: ['01:00', '01:30', '02:00'],
     active: true,
   },
 ]

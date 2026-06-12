@@ -49,7 +49,7 @@ import {
   normalizeReminderRules,
   normalizeWakeSettings,
   REMINDER_MESSAGES,
-  timeToMinutes,
+  shouldTriggerReminder,
 } from './utils/reminders'
 import {
   applyTaskAutomation,
@@ -633,6 +633,7 @@ function App() {
       status: 'completed',
       completedAt: new Date().toISOString(),
       snoozedUntil: null,
+      activeAlertKey: null,
     }))
 
     if (reminderId === 'wake') {
@@ -646,6 +647,7 @@ function App() {
       ...item,
       status: 'snoozed',
       snoozedUntil,
+      activeAlertKey: null,
     }))
   }
 
@@ -654,6 +656,7 @@ function App() {
       ...item,
       status: 'skipped',
       snoozedUntil: null,
+      activeAlertKey: null,
     }))
   }
 
@@ -666,9 +669,6 @@ function App() {
       if (activeReminder) return
 
       const todayKey = getTodayKey()
-      const currentMinutes = timeToMinutes(current)
-      if (currentMinutes === null) return
-
       const todayDayState = dailyReminderState[todayKey] || {}
       const todayBodyRecord = { ...defaultBodyRecord, date: todayKey, ...(bodyByDate[todayKey] || {}) }
       const todayWakeSummary = calculateWakeSummary(todayBodyRecord, wakeSettings, dailyWakeState[todayKey])
@@ -682,28 +682,17 @@ function App() {
         if (status === 'completed' || status === 'skipped') continue
 
         const state = normalizeDailyReminderItem(todayDayState[rule.id])
-        let triggerKey = null
+        const trigger = shouldTriggerReminder(rule, state, now)
 
-        if (state.snoozedUntil && new Date(state.snoozedUntil).getTime() <= now.getTime() && !state.triggeredTimes.includes(`snooze:${state.snoozedUntil}`)) {
-          triggerKey = `snooze:${state.snoozedUntil}`
-        }
-
-        if (!triggerKey) {
-          const dueTime = rule.times.find((time) => {
-            const reminderMinutes = timeToMinutes(time)
-            return reminderMinutes !== null && reminderMinutes <= currentMinutes && !state.triggeredTimes.includes(`time:${time}`)
-          })
-
-          if (dueTime) {
-            triggerKey = `time:${dueTime}`
-          }
-        }
-
-        if (!triggerKey) continue
+        if (!trigger) continue
 
         setDailyReminderState((currentState) => {
           const currentDay = currentState[todayKey] || {}
           const currentItem = normalizeDailyReminderItem(currentDay[rule.id])
+          const latestTrigger = shouldTriggerReminder(rule, currentItem, now)
+
+          if (latestTrigger?.alertKey !== trigger.alertKey) return currentState
+
           return {
             ...currentState,
             [todayKey]: {
@@ -712,7 +701,9 @@ function App() {
                 ...currentItem,
                 status: currentItem.status === 'snoozed' ? 'pending' : currentItem.status,
                 remindCount: Number(currentItem.remindCount || 0) + 1,
-                triggeredTimes: [...new Set([...currentItem.triggeredTimes, triggerKey])],
+                triggeredTimes: [...new Set([...currentItem.triggeredTimes, trigger.alertKey])],
+                activeAlertKey: trigger.alertKey,
+                lastTriggeredAt: now.toISOString(),
               },
             },
           }
@@ -721,6 +712,7 @@ function App() {
         setActiveReminder({
           dateKey: todayKey,
           ruleId: rule.id,
+          alertKey: trigger.alertKey,
           title: rule.title,
           message: REMINDER_MESSAGES[rule.id],
         })
@@ -734,6 +726,16 @@ function App() {
   }, [activeReminder, bodyByDate, dailyReminderState, dailyWakeState, reminderRules, reviewByDate, setDailyReminderState, wakeSettings])
 
   function closeActiveReminder() {
+    if (activeReminder) {
+      updateReminderStateForDate(activeReminder.dateKey, activeReminder.ruleId, (item) => {
+        if (item.activeAlertKey !== activeReminder.alertKey) return item
+        return {
+          ...item,
+          activeAlertKey: null,
+        }
+      })
+    }
+
     setActiveReminder(null)
   }
 

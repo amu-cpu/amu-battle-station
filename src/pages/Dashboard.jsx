@@ -66,11 +66,18 @@ function buildDisplayTasks(tasks, learningRecord) {
   ]
 }
 
-function StatItem({ label, value }) {
+function StatItem({ label, value, multiline = false }) {
+  const displayValue = value ?? '-'
+
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+    <div className="min-w-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5">
       <p className="text-xs font-bold text-slate-500">{label}</p>
-      <p className="mt-1 break-words text-sm font-black text-slate-950">{value}</p>
+      <p
+        className={`mt-0.5 text-sm font-black text-slate-950 ${multiline ? 'line-clamp-2 whitespace-pre-line' : 'truncate'}`}
+        title={String(displayValue)}
+      >
+        {displayValue}
+      </p>
     </div>
   )
 }
@@ -150,7 +157,7 @@ export default function Dashboard({
     }
 
     if (reminderById.sleep?.active !== false && reminderStatus.sleep === 'pending' && timeToMinutes(currentTime) >= timeToMinutes('02:00')) {
-      alerts.push({ tone: 'warning', text: '睡觉收尾还没做，别再乱刷。' })
+      alerts.push({ tone: 'warning', text: '睡前收尾还没做，别再乱刷。' })
     }
 
     const relapseStatus = getRelapseStatus(bodyRecord)
@@ -229,13 +236,13 @@ export default function Dashboard({
   }
 
   return (
-    <div className="space-y-5">
-      <header className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="space-y-4">
+      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-sm font-semibold text-slate-500">{formatDateLabel(selectedDate)}</p>
-        <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-1 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-3xl font-black text-slate-950">今日作战台</h1>
-            <p className="mt-2 text-sm text-slate-600">一打开就知道今天有没有像个人一样干活。</p>
+            <h1 className="text-2xl font-black text-slate-950">今日作战台</h1>
+            <p className="mt-1 text-sm text-slate-600">一屏看清今天该干什么、哪里有风险。</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" icon={ChevronLeft} onClick={() => onDateChange(shiftDateKey(selectedDate, -1))}>
@@ -261,17 +268,18 @@ export default function Dashboard({
         </div>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <ScoreCard label="今日作战分" value={scores.battleScore} detail="任务 45% / 身体 30% / 运营 25%" tone="green" />
-        <ScoreCard label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${displayTasks.length} 个动作`} />
-        <ScoreCard label="运营分" value={scores.operationScore} detail={`收入 ${formatCurrency(operationSummary.income)}`} tone="cyan" />
-        <ScoreCard label="身体分" value={scores.bodyScore} detail={`睡眠 ${bodyRecord?.sleepHours || 0} 小时`} />
-        <ScoreCard label="风险提醒" value={riskAlerts.length} detail={riskAlerts.length ? '需要处理' : '暂时干净'} tone={riskAlerts.length ? 'yellow' : 'green'} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <ScoreCard compact label="今日作战分" value={scores.battleScore} detail="任务 45% / 身体 30% / 运营 25%" tone="green" />
+        <ScoreCard compact label="任务完成率" value={`${completionRate}%`} detail={`${completedCount}/${displayTasks.length} 个动作`} />
+        <ScoreCard compact label="运营分" value={scores.operationScore} detail={`收入 ${formatCurrency(operationSummary.income)}`} tone="cyan" />
+        <ScoreCard compact label="身体分" value={scores.bodyScore} detail={`睡眠 ${bodyRecord?.sleepHours || 0} 小时`} />
+        <ScoreCard compact label="风险提醒" value={riskAlerts.length} detail={riskAlerts.length ? '需要处理' : '暂时干净'} tone={riskAlerts.length ? 'yellow' : 'green'} />
       </div>
 
-      <div className="grid gap-5 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <Card title="今日任务" eyebrow="Actions">
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+          <div className="max-h-none overflow-visible xl:max-h-[360px] xl:overflow-y-auto xl:pr-1">
+          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h3 className="text-sm font-black text-slate-950">今日重点任务</h3>
@@ -283,21 +291,21 @@ export default function Dashboard({
                 </Badge>
               ) : null}
             </div>
-            <div className="mt-3 grid gap-2">
+            <div className="mt-2 grid max-h-28 gap-2 overflow-y-auto pr-1">
               {focusTasks.length ? (
                 focusTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-2">
+                  <div key={task.id} className="flex items-center gap-2 rounded-md border border-amber-200 bg-white px-2 py-1.5">
                     <button
                       type="button"
                       onClick={() => toggleTask(task)}
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${
                         task.done
                           ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                           : 'border-amber-200 text-amber-600'
                       }`}
                       aria-label={task.done ? '标记未完成' : '标记完成'}
                     >
-                      <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                     </button>
                     <p className={`min-w-0 flex-1 text-sm font-semibold ${task.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                       {task.title}
@@ -305,7 +313,7 @@ export default function Dashboard({
                     <button
                       type="button"
                       onClick={() => deleteTask(task)}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
                       aria-label="删除重点任务"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -313,27 +321,29 @@ export default function Dashboard({
                   </div>
                 ))
               ) : (
-                <p className="rounded-md border border-dashed border-amber-200 bg-white/70 p-3 text-sm font-semibold text-amber-800">
+                <p className="rounded-md border border-dashed border-amber-200 bg-white/70 p-2 text-sm font-semibold text-amber-800">
                   昨晚没有写明天 3 件事，今天容易被琐事带跑。
                 </p>
               )}
             </div>
           </div>
 
-          <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <Input
               label="今日学习 / 沉淀主题"
               value={learningRecord.topic || ''}
               onChange={(event) => updateLearningField('topic', event.target.value)}
               placeholder="例如：Codex 提效、闲鱼选题、成交话术、可研案例、图片提示词、客户沟通"
-              className="mb-3"
+              className="mb-2"
+              inputClassName="min-h-10 py-1.5"
             />
             <Input
               label="今日学习产出，可选"
               value={learningRecord.output || ''}
               onChange={(event) => updateLearningField('output', event.target.value)}
               placeholder="例如：整理 1 条提示词、复盘 1 个案例、看完 1 篇文章、跑通 1 个流程"
-              className="mb-3"
+              className="mb-2"
+              inputClassName="min-h-10 py-1.5"
             />
             <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700">
               <input
@@ -346,44 +356,46 @@ export default function Dashboard({
             </label>
           </div>
 
-          <form onSubmit={addTask} className="mb-4 grid gap-3 md:grid-cols-[160px_1fr_auto]">
+          <form onSubmit={addTask} className="mb-3 grid gap-2 md:grid-cols-[140px_1fr_auto]">
             <Input
               as="select"
               label="类别"
               options={TASK_CATEGORIES}
               value={newTask.category}
               onChange={(event) => setNewTask((current) => ({ ...current, category: event.target.value }))}
+              inputClassName="min-h-10 py-1.5"
             />
             <Input
               label="新增任务"
               value={newTask.title}
               onChange={(event) => setNewTask((current) => ({ ...current, title: event.target.value }))}
               placeholder="写一个今天必须落地的动作"
+              inputClassName="min-h-10 py-1.5"
             />
-            <Button type="submit" variant="primary" icon={Plus} className="self-end">
+            <Button type="submit" variant="primary" icon={Plus} className="min-h-10 self-end px-3 py-1.5">
               新增
             </Button>
           </form>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-3 xl:grid-cols-2">
             {groupTasks(groupedDisplayTasks)
               .filter(({ category, tasks: categoryTasks }) => category !== '重点' || categoryTasks.length)
               .map(({ category, tasks: categoryTasks }) => (
               <div key={category} className="rounded-lg border border-slate-200">
-                <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
+                <div className="flex items-center justify-between border-b border-slate-200 px-3 py-1.5">
                   <h3 className="text-sm font-black text-slate-900">{category}</h3>
                   <Badge tone="neutral">
                     {categoryTasks.filter((task) => task.done).length}/{categoryTasks.length}
                   </Badge>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="max-h-44 divide-y divide-slate-100 overflow-y-auto">
                   {categoryTasks.map((task) => (
-                    <div key={task.id} className="flex items-center gap-2 px-3 py-3">
+                    <div key={task.id} className="flex items-center gap-2 px-3 py-2">
                       <button
                         type="button"
                         onClick={() => toggleTask(task)}
                         disabled={task.autoManaged}
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md border ${
                           task.done
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                             : 'border-slate-200 text-slate-400'
@@ -391,7 +403,7 @@ export default function Dashboard({
                         aria-label={task.done ? '标记未完成' : '标记完成'}
                         title={task.autoManaged ? '由其它页面数据自动判断' : undefined}
                       >
-                        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                       <div className="min-w-0 flex-1">
                         <p className={`text-sm font-semibold ${task.done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
@@ -408,7 +420,7 @@ export default function Dashboard({
                         <button
                           type="button"
                           onClick={() => deleteTask(task)}
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
                           aria-label="删除任务"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -420,15 +432,16 @@ export default function Dashboard({
               </div>
             ))}
           </div>
+          </div>
         </Card>
 
-        <Card title="风险提醒" eyebrow="Risk">
+        <Card title="风险提醒" eyebrow="Risk" className="xl:max-h-[440px] xl:overflow-hidden">
           {riskAlerts.length ? (
-            <div className="grid gap-2">
+            <div className="grid max-h-[360px] gap-2 overflow-y-auto pr-1">
               {riskAlerts.map((alert) => (
                 <div
                   key={alert.text}
-                  className={`flex items-start gap-2 rounded-md border p-3 text-sm ${
+                  className={`flex items-start gap-2 rounded-md border p-2.5 text-sm ${
                     alert.tone === 'danger'
                       ? 'border-rose-200 bg-rose-50 text-rose-800'
                       : 'border-amber-200 bg-amber-50 text-amber-900'
@@ -447,22 +460,22 @@ export default function Dashboard({
         </Card>
       </div>
 
-      <Card title="今日督促" eyebrow="Reminder">
-        <div className="grid gap-2 md:grid-cols-4">
-          {reminderSummary.map((item) => (
-            <div key={item.id} className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-bold text-slate-500">{item.title}</p>
-              <p className="mt-1 text-sm font-black text-slate-950">{getReminderDashboardLabel(item, wakeSummary)}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
+        <Card title="今日督促" eyebrow="Reminder" className="xl:max-h-[150px] xl:overflow-hidden">
+          <div className="grid grid-cols-2 gap-2">
+            {reminderSummary
+              .filter((item) => ['xianyu', 'study', 'review', 'sleep'].includes(item.id))
+              .map((item) => (
+                <StatItem key={item.id} label={item.title} value={getReminderDashboardLabel(item, wakeSummary)} />
+              ))}
+          </div>
+        </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-4">
-        <Card title="今日运营概览" eyebrow="Ops">
+        <Card title="运营概览" eyebrow="Ops" className="xl:max-h-[150px] xl:overflow-hidden">
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="发布" value={operationSummary.publishCount} />
             <StatItem label="曝光" value={operationSummary.exposure} />
+            <StatItem label="浏览" value={operationSummary.views} />
             <StatItem label="咨询" value={operationSummary.inquiries} />
             <StatItem label="加微" value={operationSummary.wechat} />
             <StatItem label="成交" value={operationSummary.deals} />
@@ -470,7 +483,7 @@ export default function Dashboard({
           </div>
         </Card>
 
-        <Card title="今日身体概览" eyebrow="Body">
+        <Card title="身体概览" eyebrow="Body" className="xl:max-h-[150px] xl:overflow-hidden">
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="体重" value={bodyRecord.weight || '未记录'} />
             <StatItem label="睡眠" value={bodyRecord.sleepHours ? `${bodyRecord.sleepHours} 小时` : '未记录'} />
@@ -483,7 +496,7 @@ export default function Dashboard({
           </div>
         </Card>
 
-        <Card title="资金雷达概览" eyebrow="Finance">
+        <Card title="资金概览" eyebrow="Finance" className="xl:max-h-[150px] xl:overflow-hidden">
           <div className="grid grid-cols-2 gap-2">
             <StatItem label="总资产" value={privacyMode ? '****' : formatCurrency(financeStatus.total)} />
             <StatItem label="偏高" value={financeStatus.highCount} />
@@ -492,16 +505,11 @@ export default function Dashboard({
           </div>
         </Card>
 
-        <Card title="今日复盘状态" eyebrow="Review">
+        <Card title="复盘状态" eyebrow="Review" className="xl:max-h-[150px] xl:overflow-hidden">
           <div className="grid gap-2">
             <StatItem label="是否已复盘" value={hasReviewRecord ? '已填写' : '未填写'} />
-            <StatItem label="今天最重要的一件事" value={reviewRecord.importantThing || reviewRecord.valuableThing || '未记录'} />
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <p className="text-xs font-bold text-slate-500">明天最重要 3 件事</p>
-              <p className="mt-1 whitespace-pre-line break-words text-sm font-black text-slate-950">
-                {reviewRecord.tomorrowTop3 || '未记录'}
-              </p>
-            </div>
+            <StatItem multiline label="今天最重要的一件事" value={reviewRecord.importantThing || reviewRecord.valuableThing || '未记录'} />
+            <StatItem multiline label="明天最重要 3 件事" value={reviewRecord.tomorrowTop3 || '未记录'} />
           </div>
         </Card>
       </div>

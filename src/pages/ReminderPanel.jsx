@@ -7,27 +7,17 @@ import { formatDateLabel } from '../utils/date'
 import {
   advanceWakeTarget,
   buildReminderSummary,
+  isValidReminderTime,
   minutesToTime,
   normalizeDailyReminderItem,
   normalizeReminderRules,
+  parseReminderTimes,
   REMINDER_STATUS_LABELS,
   timeToMinutes,
   WAKE_STATUS_LABELS,
 } from '../utils/reminders'
 
-const TIME_FORMAT_TIP = '时间格式应为 11:40, 12:00, 12:20'
-
-function parseTimes(value) {
-  return String(value || '')
-    .split(/[,，]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-}
-
-function validTime(value) {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value)
-  return Boolean(match)
-}
+const TIME_FORMAT_TIP = '时间格式应为 13:30, 16:30, 21:00'
 
 function statusTone(status, active) {
   if (!active) return 'neutral'
@@ -129,9 +119,9 @@ export default function ReminderPanel({
 
   function saveTimeEdit(ruleId) {
     const draft = editingTimes[ruleId]?.value || ''
-    const times = parseTimes(draft)
+    const times = parseReminderTimes(draft)
 
-    if (!times.length || times.some((time) => !validTime(time))) {
+    if (!times.length || times.some((time) => !isValidReminderTime(time))) {
       setEditingTimes((current) => ({
         ...current,
         [ruleId]: {
@@ -388,7 +378,7 @@ export default function ReminderPanel({
                       onChange={(event) =>
                         updateTimeDraft(card.id, event.target.value)
                       }
-                      placeholder="11:40, 12:00, 12:20"
+                      placeholder="13:30, 16:30, 21:00"
                     />
                     {timeDraft.error ? (
                       <p className="mt-2 text-xs font-bold text-rose-700">
