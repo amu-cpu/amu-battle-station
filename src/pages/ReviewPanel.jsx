@@ -119,24 +119,27 @@ export default function ReviewPanel({ selectedDate, reviewRecords, setReviewReco
           </Badge>
         }
       >
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4">
           <Input label="日期" type="date" value={record.date} disabled />
-          <Input
-            as="textarea"
-            label="今天最重要的一件事"
-            value={record.importantThing || record.valuableThing}
-            onChange={(event) => saveField('importantThing', event.target.value)}
-            placeholder="写具体动作，不写感受空话。"
-            inputClassName="min-h-40"
-          />
-          <Input
-            as="textarea"
-            label="明天最重要 3 件事"
-            value={record.tomorrowTop3}
-            onChange={(event) => saveField('tomorrowTop3', event.target.value)}
-            placeholder="一行一件，必须能执行。"
-            inputClassName="min-h-40"
-          />
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Input
+              as="textarea"
+              label="今天最重要的一件事"
+              value={record.importantThing || record.valuableThing}
+              onChange={(event) => saveField('importantThing', event.target.value)}
+              placeholder="写具体动作，不写感受空话。"
+              inputClassName="min-h-40"
+            />
+            <Input
+              as="textarea"
+              label="明天最重要 3 件事"
+              hint="每行一件，明天会自动出现在今日重点任务里。"
+              value={record.tomorrowTop3}
+              onChange={(event) => saveField('tomorrowTop3', event.target.value)}
+              placeholder="一行一件，必须能执行。"
+              inputClassName="min-h-40"
+            />
+          </div>
         </div>
       </Card>
 

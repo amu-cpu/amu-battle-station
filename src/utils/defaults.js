@@ -1,4 +1,4 @@
-export const TASK_CATEGORIES = ['赚钱', '学习', '身体', '资金', '复盘']
+export const TASK_CATEGORIES = ['重点', '赚钱', '学习', '身体', '资金', '复盘']
 
 const DEFAULT_TASKS = [
   ['赚钱', '养号 10 分钟'],

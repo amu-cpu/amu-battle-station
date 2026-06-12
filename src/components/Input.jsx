@@ -3,6 +3,7 @@ const baseClass =
 
 export default function Input({
   label,
+  hint,
   as = 'input',
   options = [],
   className = '',
@@ -14,6 +15,7 @@ export default function Input({
   return (
     <label className={`block ${className}`}>
       {label ? <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span> : null}
+      {hint ? <span className="mb-2 block text-xs font-semibold text-slate-500">{hint}</span> : null}
       {as === 'select' ? (
         <select className={baseClass} {...props}>
           {options.map((option) => (

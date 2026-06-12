@@ -18,7 +18,7 @@ import ReminderPanel from './pages/ReminderPanel'
 import ReviewPanel from './pages/ReviewPanel'
 import XianyuPanel from './pages/XianyuPanel'
 import { createDefaultTasks, defaultBodyRecord, defaultFinanceAssets, defaultReminderRules, defaultReviewRecord, defaultWakeSettings } from './utils/defaults'
-import { calculateSleepHours, getTodayKey } from './utils/date'
+import { calculateSleepHours, getTodayKey, shiftDateKey } from './utils/date'
 import {
   createAppStateSnapshot,
   hasMeaningfulAppState,
@@ -66,6 +66,56 @@ import {
 } from './utils/scoring'
 
 const REMINDER_CHECK_INTERVAL = 60 * 1000
+const REVIEW_TOMORROW_TOP3_SOURCE = 'reviewTomorrowTop3'
+
+function parseTomorrowTop3(value) {
+  const lines = Array.isArray(value) ? value : String(value || '').split(/\r?\n/)
+
+  return lines
+    .slice(0, 3)
+    .map((line, index) => ({
+      title: String(line || '').trim(),
+      sourceIndex: index,
+    }))
+    .filter((item) => item.title)
+}
+
+function reviewTaskSourceKey(sourceDate, sourceIndex) {
+  return `${sourceDate}:${sourceIndex}`
+}
+
+function isReviewTomorrowTask(task) {
+  return task?.source === REVIEW_TOMORROW_TOP3_SOURCE
+}
+
+function createReviewTomorrowTasks({
+  selectedDate,
+  sourceDate,
+  tomorrowTop3,
+  existingTasks,
+  dismissedSourceKeys,
+}) {
+  const dismissedSet = new Set(dismissedSourceKeys)
+  const existingSources = new Set(
+    existingTasks.filter(isReviewTomorrowTask).map((task) => reviewTaskSourceKey(task.sourceDate, task.sourceIndex)),
+  )
+
+  return parseTomorrowTop3(tomorrowTop3)
+    .filter((item) => {
+      const sourceKey = reviewTaskSourceKey(sourceDate, item.sourceIndex)
+      return !existingSources.has(sourceKey) && !dismissedSet.has(sourceKey)
+    })
+    .map((item) => ({
+      id: `review-${sourceDate}-${item.sourceIndex}`,
+      date: selectedDate,
+      category: '重点',
+      title: item.title,
+      done: false,
+      source: REVIEW_TOMORROW_TOP3_SOURCE,
+      sourceDate,
+      sourceIndex: item.sourceIndex,
+    }))
+}
 
 function App() {
   const today = getTodayKey()
@@ -110,6 +160,7 @@ function App() {
         reviewByDate,
         privacyMode,
         bodyPublicView: settings.bodyPublicView,
+        settings,
         learningTopicsByDate,
         learningRecordsByDate,
         reminderRules,
@@ -126,7 +177,7 @@ function App() {
       learningTopicsByDate,
       opsByDate,
       privacyMode,
-      settings.bodyPublicView,
+      settings,
       reminderRules,
       reviewByDate,
       tasksByDate,
@@ -390,12 +441,39 @@ function App() {
     setSyncMessage('已暂时不合并，当前只保存本地数据。')
   }
 
+  const previousReviewDate = shiftDateKey(selectedDate, -1)
+  const previousReviewTomorrowTop3 = reviewByDate[previousReviewDate]?.tomorrowTop3 || ''
+
   useEffect(() => {
+    const dismissedSourceKeys = settings.dismissedReviewTaskSources?.[selectedDate] || []
+
     setTasksByDate((current) => {
-      if (Object.prototype.hasOwnProperty.call(current, selectedDate)) return current
-      return { ...current, [selectedDate]: createDefaultTasks(selectedDate) }
+      const hasTasksForDate = Object.prototype.hasOwnProperty.call(current, selectedDate)
+      const currentTasks = hasTasksForDate && Array.isArray(current[selectedDate])
+        ? current[selectedDate]
+        : createDefaultTasks(selectedDate)
+      const reviewTomorrowTasks = createReviewTomorrowTasks({
+        selectedDate,
+        sourceDate: previousReviewDate,
+        tomorrowTop3: previousReviewTomorrowTop3,
+        existingTasks: currentTasks,
+        dismissedSourceKeys,
+      })
+
+      if (hasTasksForDate && reviewTomorrowTasks.length === 0) return current
+
+      return {
+        ...current,
+        [selectedDate]: [...reviewTomorrowTasks, ...currentTasks],
+      }
     })
-  }, [selectedDate, setTasksByDate])
+  }, [
+    previousReviewDate,
+    previousReviewTomorrowTop3,
+    selectedDate,
+    setTasksByDate,
+    settings.dismissedReviewTaskSources,
+  ])
 
   const storedTasks = Object.prototype.hasOwnProperty.call(tasksByDate, selectedDate) ? tasksByDate[selectedDate] : null
   const tasks = Array.isArray(storedTasks) ? storedTasks : createDefaultTasks(selectedDate)
@@ -473,6 +551,27 @@ function App() {
 
   function setBodyPublicView(value) {
     setSettings((current) => normalizeAppSettings({ ...current, bodyPublicView: value }))
+  }
+
+  function dismissReviewTaskSource(dateKey, task) {
+    if (!isReviewTomorrowTask(task)) return
+
+    const sourceKey = reviewTaskSourceKey(task.sourceDate, task.sourceIndex)
+
+    setSettings((current) => {
+      const currentSources = current.dismissedReviewTaskSources || {}
+      const currentDateSources = currentSources[dateKey] || []
+
+      if (currentDateSources.includes(sourceKey)) return current
+
+      return normalizeAppSettings({
+        ...current,
+        dismissedReviewTaskSources: {
+          ...currentSources,
+          [dateKey]: [...currentDateSources, sourceKey],
+        },
+      })
+    })
   }
 
   function updateReminderStateForDate(dateKey, reminderId, updater) {
@@ -672,8 +771,11 @@ function App() {
         privacyMode={privacyMode}
         reviewRecord={reviewRecord}
         hasReviewRecord={hasReviewRecord(reviewByDate[selectedDate])}
+        previousReviewDate={previousReviewDate}
+        previousReviewTomorrowTop3={previousReviewTomorrowTop3}
         learningRecord={learningRecord}
         setLearningRecord={updateLearningRecordForSelectedDate}
+        dismissReviewTaskSource={dismissReviewTaskSource}
         reminderSummary={reminderSummary}
         wakeSummary={wakeSummary}
         currentTime={currentTime}

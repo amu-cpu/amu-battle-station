@@ -82,6 +82,19 @@ function isPlainObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
+function normalizeDismissedReviewTaskSources(value) {
+  if (!isPlainObject(value)) return {}
+
+  return Object.fromEntries(
+    Object.entries(value).map(([dateKey, sourceKeys]) => [
+      dateKey,
+      Array.isArray(sourceKeys)
+        ? [...new Set(sourceKeys.map((sourceKey) => String(sourceKey || '').trim()).filter(Boolean))]
+        : [],
+    ]),
+  )
+}
+
 function hasStoredValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== ''
 }
@@ -129,6 +142,10 @@ export function normalizeAppSettings(settings, source = {}) {
     privacyMode: Boolean(normalized.privacyMode ?? source.privacyMode ?? true),
     bodyPublicView: Boolean(
       normalized.bodyPublicView ?? source.bodyPublicView ?? false,
+    ),
+    dismissedReviewTaskSources: normalizeDismissedReviewTaskSources(
+      normalized.dismissedReviewTaskSources ??
+        source.dismissedReviewTaskSources,
     ),
   }
 }
@@ -608,6 +625,7 @@ export function createAppStateSnapshot({
   reviewByDate,
   privacyMode,
   bodyPublicView,
+  settings = {},
   learningTopicsByDate,
   learningRecordsByDate,
   reminderRules,
@@ -628,7 +646,7 @@ export function createAppStateSnapshot({
     dailyReminderState,
     wakeSettings,
     dailyWakeState,
-    settings: { privacyMode, bodyPublicView },
+    settings: normalizeAppSettings({ ...settings, privacyMode, bodyPublicView }),
   })
 }
 

@@ -29,6 +29,15 @@ const DEFAULT_LEARNING_TITLES = new Set([
   '整理 1 条可复用方法、案例或提示词',
   '今日学习 / 沉淀待定',
 ])
+const REVIEW_TOMORROW_TOP3_SOURCE = 'reviewTomorrowTop3'
+
+function isReviewFocusTask(task) {
+  return task?.source === REVIEW_TOMORROW_TOP3_SOURCE
+}
+
+function hasReviewTomorrowTop3(value) {
+  return String(value || '').trim().length > 0
+}
 
 function buildDisplayTasks(tasks, learningRecord) {
   const learningTasks = tasks.filter((task) => task.category === '学习')
@@ -85,8 +94,10 @@ export default function Dashboard({
   privacyMode,
   reviewRecord,
   hasReviewRecord,
+  previousReviewTomorrowTop3,
   learningRecord,
   setLearningRecord,
+  dismissReviewTaskSource,
   reminderSummary,
   wakeSummary,
   currentTime,
@@ -97,6 +108,10 @@ export default function Dashboard({
   const hasStoredLearningCompletion = Object.prototype.hasOwnProperty.call(learningRecord, 'completed')
   const learningCompleted = hasStoredLearningCompletion ? Boolean(learningRecord.completed) : defaultLearningTasks.some((task) => task.done)
   const displayTasks = useMemo(() => buildDisplayTasks(effectiveTasks, learningRecord), [effectiveTasks, learningRecord])
+  const focusTasks = useMemo(() => displayTasks.filter(isReviewFocusTask), [displayTasks])
+  const groupedDisplayTasks = useMemo(() => displayTasks.filter((task) => !isReviewFocusTask(task)), [displayTasks])
+  const hasPreviousReviewPriority = hasReviewTomorrowTop3(previousReviewTomorrowTop3)
+  const hasIncompleteFocusTask = focusTasks.some((task) => !task.done)
   const completedCount = displayTasks.filter((task) => task.done).length
   const completionRate = displayTasks.length ? Math.round((completedCount / displayTasks.length) * 100) : 0
 
@@ -105,6 +120,14 @@ export default function Dashboard({
     const learningTopic = learningRecord.topic || ''
     const reminderById = Object.fromEntries(reminderSummary.map((item) => [item.id, item]))
     const reminderStatus = Object.fromEntries(reminderSummary.map((item) => [item.id, item.status]))
+
+    if (!focusTasks.length && !hasPreviousReviewPriority) {
+      alerts.push({ tone: 'warning', text: '昨晚没有留下今天的 3 件重点，今天容易被琐事带跑。' })
+    }
+
+    if (hasIncompleteFocusTask) {
+      alerts.push({ tone: 'warning', text: '今日重点任务还没完成，先别开新坑。' })
+    }
 
     if (reminderById.wake?.active !== false && wakeSummary.status === 'unrecorded') {
       alerts.push({ tone: 'warning', text: '今天还没记录起床时间。' })
@@ -147,12 +170,24 @@ export default function Dashboard({
       alerts.push({ tone: 'warning', text: '有资产低于下限，先观察，不要乱补。' })
     }
 
-    if (displayTasks.some((task) => !task.done)) {
+    if (!hasIncompleteFocusTask && displayTasks.some((task) => !task.done)) {
       alerts.push({ tone: 'warning', text: '还有任务没完成，先收口今天的动作。' })
     }
 
     return alerts.slice(0, 5)
-  }, [bodyRecord, currentTime, displayTasks, financeStatus, learningRecord.topic, operationSummary, reminderSummary, wakeSummary.status])
+  }, [
+    bodyRecord,
+    currentTime,
+    displayTasks,
+    financeStatus,
+    focusTasks.length,
+    hasIncompleteFocusTask,
+    hasPreviousReviewPriority,
+    learningRecord.topic,
+    operationSummary,
+    reminderSummary,
+    wakeSummary.status,
+  ])
 
   function toggleTask(targetTask) {
     if (targetTask.isLearningRecord) {
@@ -170,8 +205,9 @@ export default function Dashboard({
     setLearningRecord((current) => ({ ...current, [field]: value }))
   }
 
-  function deleteTask(taskId) {
-    setTasks((current) => current.filter((task) => task.id !== taskId))
+  function deleteTask(targetTask) {
+    dismissReviewTaskSource?.(selectedDate, targetTask)
+    setTasks((current) => current.filter((task) => task.id !== targetTask.id))
   }
 
   function addTask(event) {
@@ -235,6 +271,55 @@ export default function Dashboard({
 
       <div className="grid gap-5 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
         <Card title="今日任务" eyebrow="Actions">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-950">今日重点任务</h3>
+                <p className="mt-1 text-xs font-semibold text-slate-600">来自昨晚复盘，先完成这几件事。</p>
+              </div>
+              {focusTasks.length ? (
+                <Badge tone="warning">
+                  {focusTasks.filter((task) => task.done).length}/{focusTasks.length}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="mt-3 grid gap-2">
+              {focusTasks.length ? (
+                focusTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-2 rounded-md border border-amber-200 bg-white px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleTask(task)}
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border ${
+                        task.done
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-amber-200 text-amber-600'
+                      }`}
+                      aria-label={task.done ? '标记未完成' : '标记完成'}
+                    >
+                      <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+                    </button>
+                    <p className={`min-w-0 flex-1 text-sm font-semibold ${task.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                      {task.title}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => deleteTask(task)}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
+                      aria-label="删除重点任务"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-md border border-dashed border-amber-200 bg-white/70 p-3 text-sm font-semibold text-amber-800">
+                  昨晚没有写明天 3 件事，今天容易被琐事带跑。
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
             <Input
               label="今日学习 / 沉淀主题"
@@ -281,7 +366,9 @@ export default function Dashboard({
           </form>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            {groupTasks(displayTasks).map(({ category, tasks: categoryTasks }) => (
+            {groupTasks(groupedDisplayTasks)
+              .filter(({ category, tasks: categoryTasks }) => category !== '重点' || categoryTasks.length)
+              .map(({ category, tasks: categoryTasks }) => (
               <div key={category} className="rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
                   <h3 className="text-sm font-black text-slate-900">{category}</h3>
@@ -320,7 +407,7 @@ export default function Dashboard({
                       {task.isLearningRecord ? null : (
                         <button
                           type="button"
-                          onClick={() => deleteTask(task.id)}
+                          onClick={() => deleteTask(task)}
                           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-700"
                           aria-label="删除任务"
                         >
