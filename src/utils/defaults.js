@@ -99,6 +99,19 @@ export const defaultBodyRecord = {
   relapseTypes: [],
   relapseNote: '',
   disciplineUrges: [],
+  urgeDelayCount: 0,
+  urgeResolvedCount: 0,
+  urgeDelayedAt: '',
+  lastUrgeAt: '',
+  selectedAlternativeAction: '',
+  rescueState: {
+    active: false,
+    step: 'pause',
+    startedAt: '',
+    delayedAt: '',
+    selectedAlternativeAction: '',
+  },
+  acknowledgedDisciplineRewards: [],
   note: '',
 }
 

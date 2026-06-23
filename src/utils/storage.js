@@ -215,7 +215,13 @@ function hasMeaningfulBodyRecords(bodyByDate) {
           record.disciplineUrges.length > 0) ||
         record?.selectedAlternativeAction ||
         record?.urgeDelayedAt ||
+        normalizeStoredNumber(record?.urgeDelayCount) > 0 ||
+        normalizeStoredNumber(record?.urgeResolvedCount) > 0 ||
         record?.lastUrgeAt ||
+        Boolean(record?.rescueState?.active) ||
+        record?.rescueState?.selectedAlternativeAction ||
+        (Array.isArray(record?.acknowledgedDisciplineRewards) &&
+          record.acknowledgedDisciplineRewards.length > 0) ||
         normalizeRelapseTypes(record?.relapseTypes).length ||
         normalizeRelapseStatus(record?.relapseStatus) !== 'unrecorded' ||
         record?.note ||
@@ -511,6 +517,32 @@ export function migrateBodyRecord(record) {
   next.relapseNote = next.relapseNote ?? ''
   next.disciplineUrges = Array.isArray(next.disciplineUrges)
     ? next.disciplineUrges
+    : []
+  next.urgeDelayCount = normalizeStoredNumber(next.urgeDelayCount)
+  next.urgeResolvedCount = normalizeStoredNumber(next.urgeResolvedCount)
+  next.urgeDelayedAt = next.urgeDelayedAt ?? ''
+  next.lastUrgeAt = next.lastUrgeAt ?? ''
+  next.selectedAlternativeAction = next.selectedAlternativeAction ?? ''
+
+  const rescueState = isPlainObject(next.rescueState) ? next.rescueState : {}
+  next.rescueState = {
+    active: Boolean(rescueState.active),
+    step: ['pause', 'alternative', 'result'].includes(rescueState.step)
+      ? rescueState.step
+      : 'pause',
+    startedAt: rescueState.startedAt || '',
+    delayedAt: rescueState.delayedAt || '',
+    selectedAlternativeAction:
+      rescueState.selectedAlternativeAction ||
+      next.selectedAlternativeAction ||
+      '',
+  }
+  next.acknowledgedDisciplineRewards = Array.isArray(
+    next.acknowledgedDisciplineRewards,
+  )
+    ? next.acknowledgedDisciplineRewards
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
     : []
 
   return {
