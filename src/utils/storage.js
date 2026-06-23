@@ -111,8 +111,8 @@ function fillIfEmpty(target, field, value) {
 
 function normalizeRelapseStatus(value) {
   const text = String(value ?? '').trim()
-  if (['yes', '是', '有', '破戒'].includes(text)) return 'yes'
-  if (['no', '否', '没有', '无'].includes(text)) return 'no'
+  if (['yes', '是', '有', '破戒', '失守'].includes(text)) return 'yes'
+  if (['no', '否', '没有', '无', '达标'].includes(text)) return 'no'
   return 'unrecorded'
 }
 
@@ -211,6 +211,11 @@ function hasMeaningfulBodyRecords(bodyByDate) {
         record?.加餐 ||
         record?.exerciseText ||
         record?.relapseNote ||
+        (Array.isArray(record?.disciplineUrges) &&
+          record.disciplineUrges.length > 0) ||
+        record?.selectedAlternativeAction ||
+        record?.urgeDelayedAt ||
+        record?.lastUrgeAt ||
         normalizeRelapseTypes(record?.relapseTypes).length ||
         normalizeRelapseStatus(record?.relapseStatus) !== 'unrecorded' ||
         record?.note ||
@@ -488,17 +493,25 @@ export function migrateBodyRecord(record) {
   }
 
   next.relapseStatus = normalizeRelapseStatus(
-    firstStoredValue(next, ['relapseStatus', '是否破戒']),
+    firstStoredValue(next, [
+      'relapseStatus',
+      '是否破戒',
+      '自律状态',
+      '今日自律状态',
+    ]),
   )
   next.relapseTypes = normalizeRelapseTypes(
-    firstStoredValue(next, ['relapseTypes', '破戒类型']),
+    firstStoredValue(next, ['relapseTypes', '破戒类型', '触发源']),
   )
   fillIfEmpty(
     next,
     'relapseNote',
-    firstStoredValue(record, ['relapseNote', '破戒备注']),
+    firstStoredValue(record, ['relapseNote', '破戒备注', '自律备注']),
   )
   next.relapseNote = next.relapseNote ?? ''
+  next.disciplineUrges = Array.isArray(next.disciplineUrges)
+    ? next.disciplineUrges
+    : []
 
   return {
     schemaVersion: APP_STATE_SCHEMA_VERSION,

@@ -31,16 +31,17 @@ export const EXERCISE_OPTIONS = [
 
 export const RELAPSE_STATUS_OPTIONS = [
   { value: 'unrecorded', label: '未记录' },
-  { value: 'no', label: '否' },
-  { value: 'yes', label: '是' },
+  { value: 'no', label: '达标' },
+  { value: 'yes', label: '失守' },
 ]
 
 export const RELAPSE_TYPE_OPTIONS = [
-  '熬夜',
-  '暴食',
-  '乱刷短视频',
-  '拖延',
-  '情绪失控',
+  '疲惫',
+  '压力',
+  '凌晨',
+  '无聊',
+  '独处',
+  '刷屏',
   '其他',
 ]
 
@@ -97,6 +98,7 @@ export const defaultBodyRecord = {
   relapseStatus: 'unrecorded',
   relapseTypes: [],
   relapseNote: '',
+  disciplineUrges: [],
   note: '',
 }
 
