@@ -899,7 +899,10 @@ function getActionSummaryLevel(rows) {
   return rows.length ? 'attention' : 'neutral'
 }
 
-function buildTodayDecision({ actionItems, cashGap, cooldownCount }) {
+function buildTodayDecision({ actionItems, allActionItems, cashGap, cooldownCount }) {
+  if (!actionItems.length && allActionItems.length) {
+    return '今日总判断：今日提醒已全部读完，后续按计划观察。'
+  }
   if (cashGap > 0 && cooldownCount > 0) {
     return '今日总判断：优先补现金池；冷静期资产禁止重复卖出；其余资产按计划观察。'
   }
@@ -913,6 +916,16 @@ function buildTodayDecision({ actionItems, cashGap, cooldownCount }) {
     return '今日总判断：有资产需要关注，先看清单，不执行真实交易。'
   }
   return '今日总判断：今日无需操作，按计划执行即可。'
+}
+
+function getActionReadKey(row, dateKey = localDateKey()) {
+  return [
+    dateKey,
+    row.name || '',
+    actionLevels[row.actionLevel]?.label || row.actionLevel || '',
+    row.nextAction || '',
+    '标记已读',
+  ].join('|')
 }
 
 function readActionLog() {
@@ -929,6 +942,58 @@ function writeActionLog(records) {
   window.localStorage.setItem(FINANCE_ACTION_LOG_KEY, JSON.stringify(records))
 }
 
+function normalizeActionLogItem(item) {
+  const dateKey = item.dateKey || String(item.createdAt || '').slice(0, 10) || localDateKey()
+  const operationType = item.operationType || '标记已读'
+  const actionLevel = item.actionLevel || ''
+  const nextAction = item.nextAction || ''
+  const assetName = item.assetName || ''
+  const readKey = item.readKey || [dateKey, assetName, actionLevel, nextAction, operationType].join('|')
+  return {
+    ...item,
+    id: item.id || readKey,
+    readKey,
+    dateKey,
+    assetName,
+    actionLevel,
+    nextAction,
+    operationType,
+    firstReadAt: item.firstReadAt || item.createdAt || new Date().toISOString(),
+    lastReadAt: item.lastReadAt || item.createdAt || new Date().toISOString(),
+    readCount: Number(item.readCount || 1),
+  }
+}
+
+function normalizeActionLog(records) {
+  const merged = new Map()
+  records.map(normalizeActionLogItem).forEach((item) => {
+    const existing = merged.get(item.readKey)
+    if (!existing) {
+      merged.set(item.readKey, item)
+      return
+    }
+
+    merged.set(item.readKey, {
+      ...existing,
+      firstReadAt:
+        existing.firstReadAt < item.firstReadAt
+          ? existing.firstReadAt
+          : item.firstReadAt,
+      lastReadAt:
+        existing.lastReadAt > item.lastReadAt ? existing.lastReadAt : item.lastReadAt,
+      readCount: existing.readCount + item.readCount,
+    })
+  })
+
+  return Array.from(merged.values()).sort(
+    (a, b) => new Date(b.lastReadAt).getTime() - new Date(a.lastReadAt).getTime(),
+  )
+}
+
+function isActionRead(row, actionLog) {
+  return actionLog.some((item) => item.readKey === getActionReadKey(row))
+}
+
 function getStripeStyle(row) {
   const config = actionLevels[row.actionLevel] || actionLevels.neutral
   return { borderLeftColor: config.text }
@@ -942,12 +1007,12 @@ export default function FinancePanel({
 }) {
   const [form, setForm] = useState(emptyAsset)
   const [formOpen, setFormOpen] = useState(false)
-  const [emotionVisible, setEmotionVisible] = useState(false)
   const [editingCell, setEditingCell] = useState(null)
   const [expandedRow, setExpandedRow] = useState(null)
   const [tableMode, setTableMode] = useState('full')
   const [recordsOpen, setRecordsOpen] = useState(false)
-  const [actionLog, setActionLog] = useState(() => readActionLog())
+  const [allRecordsOpen, setAllRecordsOpen] = useState(false)
+  const [actionLog, setActionLog] = useState(() => normalizeActionLog(readActionLog()))
   const [saveNotice, setSaveNotice] = useState('')
   const [backupNotice, setBackupNotice] = useState('')
   const importInputRef = useRef(null)
@@ -970,7 +1035,8 @@ export default function FinancePanel({
   const cashAmount = toNumber(cashAsset?.amount)
   const cashGap = calculateCashGap(total, cashAmount)
   const cashRatio = cashAsset ? cashAsset.ratio : 0
-  const actionItems = getActionItems(rows)
+  const allActionItems = getActionItems(rows)
+  const actionItems = allActionItems.filter((row) => !isActionRead(row, actionLog))
   const cooldownCount = rows.filter((row) => row.cooldown.active).length
   const equityRatio = getEquityRatio(rows)
   const highCount = rows.filter((row) => row.status === '偏高').length
@@ -978,10 +1044,12 @@ export default function FinancePanel({
   const actionSummaryLevel = getActionSummaryLevel(actionItems)
   const todayDecision = buildTodayDecision({
     actionItems,
+    allActionItems,
     cashGap,
     cooldownCount,
   })
   const compactTable = tableMode === 'compact'
+  const visibleActionLog = allRecordsOpen ? actionLog : actionLog.slice(0, 5)
 
   function showSavedNotice() {
     setSaveNotice('已保存')
@@ -1030,18 +1098,35 @@ export default function FinancePanel({
   }
 
   function markActionRead(row) {
+    const now = new Date().toISOString()
+    const readKey = getActionReadKey(row)
     const record = {
-      id: `finance-action-${row.__index}-${row.name}-${row.actionLevel}-${actionLog.length}`,
-      createdAt: new Date().toISOString(),
+      id: readKey,
+      readKey,
+      dateKey: localDateKey(),
+      createdAt: now,
+      firstReadAt: now,
+      lastReadAt: now,
+      readCount: 1,
       assetName: row.name || '',
       actionLevel: actionLevels[row.actionLevel]?.label || row.actionLevel,
       nextAction: row.nextAction,
       operationType: '标记已读',
     }
-    const nextLog = [record, ...actionLog].slice(0, 80)
+    const existing = actionLog.find((item) => item.readKey === readKey)
+    const nextLog = normalizeActionLog([
+      existing
+        ? {
+            ...existing,
+            lastReadAt: now,
+            readCount: Number(existing.readCount || 1) + 1,
+          }
+        : record,
+      ...actionLog.filter((item) => item.readKey !== readKey),
+    ]).slice(0, 80)
     setActionLog(nextLog)
     writeActionLog(nextLog)
-    showBackupNotice('已标记为已读，仅用于本地记录。')
+    showBackupNotice(existing ? '这条提醒今天已读，已更新记录。' : '已标记为已读，仅用于本地记录。')
   }
 
   function startCellEdit(row, field) {
@@ -1253,7 +1338,7 @@ export default function FinancePanel({
               今天要不要动，一眼看清
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              保留原始资产记录，在上方叠加动作提示层。
+              只做记录和提醒，不给投资建议。
             </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:mt-1 sm:justify-end">
@@ -1382,6 +1467,10 @@ export default function FinancePanel({
               </div>
             ))}
           </div>
+        ) : allActionItems.length ? (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+            今日提醒已全部读完，后续按计划观察。
+          </div>
         ) : (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
             ✅ 今日无需操作，按计划执行。
@@ -1389,20 +1478,25 @@ export default function FinancePanel({
         )}
       </Card>
 
-      <Card
-        title="新增资产"
-        eyebrow="Record"
-        action={
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-4 py-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-slate-500">RECORD</p>
+            <h2 className="mt-1 text-lg font-bold text-slate-950">新增资产</h2>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              不是每天新增资产，默认收起。需要时点击右侧按钮展开。
+            </p>
+          </div>
           <Button
             type="button"
             variant={formOpen ? 'secondary' : 'primary'}
-            icon={Plus}
+            icon={formOpen ? undefined : Plus}
             onClick={() => setFormOpen((value) => !value)}
+            className="shrink-0"
           >
-            {formOpen ? '收起新增' : '新增资产'}
+            {formOpen ? '收起新增' : '+ 新增资产'}
           </Button>
-        }
-      >
+        </div>
         {formOpen ? (
           <form onSubmit={saveAsset} className="grid gap-3 xl:grid-cols-8">
             <Input
@@ -1458,10 +1552,10 @@ export default function FinancePanel({
           </form>
         ) : (
           <p className="text-sm font-semibold text-slate-500">
-            不是每天新增资产，默认收起。需要时点击右上角按钮展开。
+            保留现有持仓为主，需要新增资产时再展开填写。
           </p>
         )}
-      </Card>
+      </section>
 
       <Card
         title="持仓雷达表"
@@ -1477,21 +1571,12 @@ export default function FinancePanel({
             >
               {compactTable ? '完整模式' : '简洁模式'}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setEmotionVisible((value) => !value)}
-            >
-              禁止情绪化操作
-            </Button>
           </div>
         }
       >
-        {emotionVisible ? (
-          <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-            今天情绪波动时，不做买卖决定。
-          </div>
-        ) : null}
+        <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">
+          纪律提醒：本页只做记录和提醒，不执行真实交易；禁止情绪化操作。
+        </div>
 
         <div className="overflow-x-auto">
           <table className={`${compactTable ? 'min-w-[1120px]' : 'min-w-[1640px]'} w-full table-fixed border-collapse text-left text-sm`}>
@@ -1648,23 +1733,59 @@ export default function FinancePanel({
       >
         {recordsOpen ? (
           actionLog.length ? (
-            <div className="divide-y divide-slate-100">
-              {actionLog.slice(0, 12).map((item) => (
-                <div key={item.id} className="grid gap-2 py-3 text-sm md:grid-cols-[180px_160px_160px_1fr]">
-                  <p className="font-semibold text-slate-500">
-                    {new Date(item.createdAt).toLocaleString('zh-CN')}
-                  </p>
-                  <p className="font-black text-slate-900">{item.assetName || '-'}</p>
-                  <p className="font-semibold text-slate-700">{item.operationType}</p>
-                  <p className="font-semibold text-slate-600">
-                    {item.actionLevel} · {item.nextAction}
-                  </p>
-                </div>
-              ))}
+            <div className="space-y-3">
+              <div className="overflow-x-auto">
+                <table className="min-w-[900px] w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-500 [&>th]:whitespace-nowrap">
+                      <th className="py-2 pr-3">时间</th>
+                      <th className="py-2 pr-3">资产</th>
+                      <th className="py-2 pr-3">操作</th>
+                      <th className="py-2 pr-3">当时提醒</th>
+                      <th className="py-2 pr-3">当时建议</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {visibleActionLog.map((item) => (
+                      <tr key={item.readKey || item.id}>
+                        <td className="py-3 pr-3 font-semibold text-slate-500">
+                          {new Date(item.lastReadAt).toLocaleString('zh-CN')}
+                          {item.readCount > 1 ? (
+                            <span className="ml-2 rounded bg-slate-100 px-2 py-1 text-xs text-slate-500">
+                              {item.readCount} 次
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-3 pr-3 font-black text-slate-900">
+                          {item.assetName || '-'}
+                        </td>
+                        <td className="py-3 pr-3 font-semibold text-slate-700">
+                          {item.operationType}
+                        </td>
+                        <td className="py-3 pr-3 font-semibold text-slate-700">
+                          {item.actionLevel}
+                        </td>
+                        <td className="py-3 pr-3 font-semibold text-slate-600">
+                          {item.nextAction}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {actionLog.length > 5 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setAllRecordsOpen((value) => !value)}
+                >
+                  {allRecordsOpen ? '收起全部记录' : '展开全部记录'}
+                </Button>
+              ) : null}
             </div>
           ) : (
             <p className="text-sm font-semibold text-slate-500">
-              还没有处理记录。点击动作清单里的“标记已读”后会记录在这里。
+              暂无处理记录。
             </p>
           )
         ) : (
