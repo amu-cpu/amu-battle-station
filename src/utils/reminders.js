@@ -164,7 +164,16 @@ export function timeToMinutes(time) {
   const [hour, minute] = String(time || '')
     .split(':')
     .map(Number)
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
+  if (
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null
+  }
   return hour * 60 + minute
 }
 
@@ -175,6 +184,15 @@ export function minutesToTime(totalMinutes) {
   const hour = String(Math.floor(normalized / 60)).padStart(2, '0')
   const minute = String(normalized % 60).padStart(2, '0')
   return `${hour}:${minute}`
+}
+
+export function parseTimeToMinutes(timeString) {
+  return timeToMinutes(timeString)
+}
+
+export function formatMinutesToTime(minutes) {
+  if (!Number.isFinite(Number(minutes))) return ''
+  return minutesToTime(Number(minutes))
 }
 
 export function getCurrentTimeString(date = new Date()) {
@@ -243,6 +261,82 @@ export function getWakeTime(record) {
   )
 }
 
+export function getWakeDelayMinutes(actualWakeTime, targetWakeTime) {
+  const actualMinutes = parseTimeToMinutes(actualWakeTime)
+  const targetMinutes = parseTimeToMinutes(targetWakeTime)
+  if (actualMinutes === null || targetMinutes === null) return null
+  return Math.max(0, actualMinutes - targetMinutes)
+}
+
+export function getWakeStatus(actualWakeTime, targetWakeTime) {
+  const delayMinutes = getWakeDelayMinutes(actualWakeTime, targetWakeTime)
+  if (delayMinutes === null) return 'unrecorded'
+  if (delayMinutes <= 0) return 'on_time'
+  if (delayMinutes <= 30) return 'slightly_late'
+  return 'late'
+}
+
+export function calculateWakeStats(records, targetWakeTime, selectedDate) {
+  const targetMinutes = parseTimeToMinutes(targetWakeTime)
+  const entries = Object.values(records || {})
+    .filter((record) => record?.date && (!selectedDate || record.date <= selectedDate))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+    .slice(0, 7)
+
+  const recorded = entries
+    .map((record) => ({
+      date: record.date,
+      wakeTime: getWakeTime(record),
+      minutes: parseTimeToMinutes(getWakeTime(record)),
+    }))
+    .filter((item) => item.minutes !== null)
+
+  const onTimeDays =
+    targetMinutes === null
+      ? 0
+      : recorded.filter((item) => item.minutes <= targetMinutes).length
+  const recordedDays = recorded.length
+  const averageMinutes = recordedDays
+    ? Math.round(
+        recorded.reduce((total, item) => total + item.minutes, 0) / recordedDays,
+      )
+    : null
+  const earliest = recordedDays
+    ? recorded.reduce((earliestItem, item) =>
+        item.minutes < earliestItem.minutes ? item : earliestItem,
+      )
+    : null
+  const latest = recordedDays
+    ? recorded.reduce((latestItem, item) =>
+        item.minutes > latestItem.minutes ? item : latestItem,
+      )
+    : null
+
+  let streak = 0
+  let cursor = selectedDate || entries[0]?.date || ''
+  while (cursor) {
+    const record = records?.[cursor]
+    const wakeTime = getWakeTime(record)
+    if (getWakeStatus(wakeTime, targetWakeTime) !== 'on_time') break
+    streak += 1
+    const date = new Date(`${cursor}T00:00:00`)
+    if (Number.isNaN(date.getTime())) break
+    date.setDate(date.getDate() - 1)
+    cursor = date.toISOString().slice(0, 10)
+  }
+
+  return {
+    averageWakeTime: averageMinutes === null ? '' : formatMinutesToTime(averageMinutes),
+    onTimeDays,
+    recordedDays,
+    targetDays: entries.length,
+    rate: recordedDays ? Math.round((onTimeDays / recordedDays) * 100) : null,
+    streak,
+    earliestWakeTime: earliest ? formatMinutesToTime(earliest.minutes) : '',
+    latestWakeTime: latest ? formatMinutesToTime(latest.minutes) : '',
+  }
+}
+
 export function calculateWakeSummary(
   record,
   wakeSettings,
@@ -252,7 +346,7 @@ export function calculateWakeSummary(
   const actualWakeTime =
     getWakeTime(record) || storedWakeState.actualWakeTime || ''
   const targetWakeTime =
-    storedWakeState.targetWakeTime || settings.targetWakeTime
+    storedWakeState.targetWakeTime || settings.finalWakeTime || settings.targetWakeTime
   const targetMinutes = timeToMinutes(targetWakeTime)
   const actualMinutes = timeToMinutes(actualWakeTime)
 

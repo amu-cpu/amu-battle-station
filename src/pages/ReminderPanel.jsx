@@ -150,6 +150,15 @@ export default function ReminderPanel({
   }
 
   function updateWakeSetting(field, value) {
+    if (field === 'targetWakeTime' || field === 'finalWakeTime') {
+      setWakeSettings((current) => ({
+        ...current,
+        targetWakeTime: value,
+        finalWakeTime: value,
+      }))
+      return
+    }
+
     setWakeSettings((current) => ({
       ...current,
       [field]:
@@ -180,15 +189,7 @@ export default function ReminderPanel({
           <Input
             label="目标起床时间"
             type="time"
-            value={wakeSettings.targetWakeTime}
-            onChange={(event) =>
-              updateWakeSetting('targetWakeTime', event.target.value)
-            }
-          />
-          <Input
-            label="最终目标"
-            type="time"
-            value={wakeSettings.finalWakeTime}
+            value={wakeSettings.finalWakeTime || wakeSettings.targetWakeTime}
             onChange={(event) =>
               updateWakeSetting('finalWakeTime', event.target.value)
             }
@@ -216,7 +217,13 @@ export default function ReminderPanel({
             variant="primary"
             className="self-end"
             onClick={() =>
-              setWakeSettings((current) => advanceWakeTarget(current))
+              setWakeSettings((current) => {
+                const next = advanceWakeTarget(current)
+                return {
+                  ...next,
+                  finalWakeTime: next.targetWakeTime,
+                }
+              })
             }
           >
             目标提前 15 分钟
@@ -226,7 +233,7 @@ export default function ReminderPanel({
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-bold text-slate-500">目标起床</p>
             <p className="mt-1 text-sm font-black text-slate-950">
-              {wakeSummary.targetWakeTime}
+              {wakeSettings.finalWakeTime || wakeSummary.targetWakeTime}
             </p>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">

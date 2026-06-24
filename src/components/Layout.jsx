@@ -50,7 +50,7 @@ export default function Layout({ activePage, onNavigate, children }) {
       </aside>
 
       <main className="min-h-svh w-full px-4 pb-28 pt-4 md:ml-60 md:w-[calc(100%-15rem)] md:px-6 md:pb-6 md:pt-5 xl:px-8">
-        <div className={activePage === 'dashboard' || activePage === 'finance' ? 'w-full max-w-none' : 'mx-auto w-full max-w-[1600px]'}>
+        <div className={activePage === 'dashboard' || activePage === 'finance' || activePage === 'body' ? 'w-full max-w-none' : 'mx-auto w-full max-w-[1600px]'}>
           {children}
         </div>
       </main>
