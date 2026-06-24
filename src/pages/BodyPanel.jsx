@@ -23,7 +23,6 @@ import {
   getWakeDelayMinutes,
   getWakeStatus,
   parseTimeToMinutes,
-  WAKE_STATUS_LABELS,
 } from '../utils/reminders'
 import { getRelapseStatus } from '../utils/scoring'
 
@@ -711,63 +710,92 @@ function WakeSupervisionPanel({
     stats.recordedDays > 0
       ? `${stats.onTimeDays}/${stats.recordedDays} 天达标（${stats.rate}%）`
       : '样本不足'
+  const recentWakeDetails = Array.from({ length: 7 }, (_, index) => {
+    const date = shiftDateKey(selectedDate, -index)
+    const item = bodyRecords[date]
+    const wakeTime = item?.wakeTime || item?.wakeUpTime || item?.起床时间 || ''
+    const status = getWakeStatus(wakeTime, targetWakeTime)
+    const label =
+      status === 'unrecorded'
+        ? '未记录'
+        : status === 'on_time'
+          ? '达标'
+          : '晚起'
+    const className =
+      status === 'unrecorded'
+        ? 'border-slate-200 bg-slate-100 text-slate-600'
+        : status === 'on_time'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          : 'border-rose-200 bg-rose-50 text-rose-700'
+
+    return {
+      date,
+      wakeTime,
+      label,
+      className,
+    }
+  })
 
   return (
-    <Card title="早起监督" eyebrow="Wake">
+    <Card
+      title="早起监督"
+      eyebrow="Wake"
+      action={
+        <Button
+          type="button"
+          variant="secondary"
+          className="min-h-9 px-3 py-1.5 text-xs"
+          onClick={() => setEditingTarget((current) => !current)}
+        >
+          设置目标
+        </Button>
+      }
+    >
       <p className="mb-4 text-sm font-semibold text-slate-600">
         只看实际起床，不看幻想目标。
       </p>
 
-      <div className="grid gap-3">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold text-slate-500">今日目标起床</p>
-              <p className="mt-1 text-xl font-black text-slate-950">
-                {targetWakeTime || '未设置'}
-              </p>
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-9 px-3 py-1.5 text-xs"
-              onClick={() => setEditingTarget((current) => !current)}
-            >
-              设置目标
-            </Button>
-          </div>
-          {editingTarget ? (
-            <Input
-              label=""
-              type="time"
-              value={targetWakeTime}
-              onChange={(event) => onSetTargetWakeTime(event.target.value)}
-              className="mt-3"
-            />
-          ) : null}
+      {editingTarget ? (
+        <div className="mb-4 max-w-xs">
+          <Input
+            label="今日目标起床"
+            type="time"
+            value={targetWakeTime}
+            onChange={(event) => onSetTargetWakeTime(event.target.value)}
+          />
         </div>
+      ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="grid gap-4">
+        <div className="grid gap-3 lg:grid-cols-4">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-bold text-slate-500">今日目标起床</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">
+              {targetWakeTime || '未设置'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-xs font-bold text-slate-500">今日实际起床</p>
-            <p className="mt-1 text-lg font-black text-slate-950">
+            <p className="mt-2 text-2xl font-black text-slate-950">
               {actualWakeTime || '未记录'}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
             <p className="text-xs font-bold text-slate-500">今日偏差</p>
-            <p className="mt-1 text-lg font-black text-slate-950">{deviationText}</p>
+            <p className="mt-2 text-2xl font-black text-slate-950">{deviationText}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-xs font-bold text-slate-500">今日状态</p>
+            <div className="mt-2">
+              <Badge tone={config.tone}>{config.label}</Badge>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+              {config.message}
+            </p>
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone={config.tone}>{config.label}</Badge>
-            <p className="text-sm font-semibold text-slate-700">{config.message}</p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 text-sm">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="font-semibold text-slate-500">最近 7 天平均起床</p>
             <p className="mt-1 font-black text-slate-950">
@@ -785,11 +813,36 @@ function WakeSupervisionPanel({
             </p>
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="font-semibold text-slate-500">最早起床</p>
+            <p className="mt-1 font-black text-slate-950">
+              {stats.earliestWakeTime || '样本不足'}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="font-semibold text-slate-500">最晚起床</p>
+            <p className="mt-1 font-black text-slate-950">
+              {stats.latestWakeTime || '样本不足'}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="font-semibold text-slate-500">明日建议上床</p>
             <p className="mt-1 font-black text-slate-950">
               {suggestedBedTime ? `建议 ${suggestedBedTime} 前上床` : '先设置目标'}
             </p>
           </div>
+        </div>
+
+        <div className="grid gap-2 md:grid-cols-7">
+          {recentWakeDetails.map((item) => (
+            <div
+              key={item.date}
+              className={`rounded-md border p-2 text-xs font-semibold ${item.className}`}
+            >
+              <p>{item.date}</p>
+              <p className="mt-1">{item.wakeTime || '未记录'}</p>
+              <p className="mt-1">{item.label}</p>
+            </div>
+          ))}
         </div>
       </div>
     </Card>
@@ -817,6 +870,28 @@ export default function BodyPanel({
   const relapseStatus = getRelapseStatus(record)
   const relapseTypes = getTriggerSources(record)
   const rescueState = getRescueState(record)
+  const targetWakeTime = wakeSettings?.finalWakeTime || wakeSettings?.targetWakeTime || ''
+  const actualWakeTime = record.wakeTime || wakeSummary.actualWakeTime || ''
+  const wakeStatus = getWakeStatus(actualWakeTime, targetWakeTime)
+  const wakeDelayMinutes = getWakeDelayMinutes(actualWakeTime, targetWakeTime)
+  const wakeCardLabel =
+    wakeStatus === 'on_time'
+      ? '达标'
+      : wakeStatus === 'unrecorded'
+        ? '未记录'
+        : '晚起'
+  const wakeCardTone =
+    wakeStatus === 'on_time'
+      ? 'green'
+      : wakeStatus === 'unrecorded'
+        ? 'yellow'
+        : 'red'
+  const wakeCardDetail =
+    wakeStatus === 'on_time'
+      ? '今日已达标'
+      : wakeStatus === 'unrecorded'
+        ? '未记录'
+        : `晚起 ${wakeDelayMinutes || 0} 分钟`
 
   const disciplineStats = (() => {
     const entries = Object.values(bodyRecords)
@@ -1139,15 +1214,9 @@ export default function BodyPanel({
         <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 运动 / 饮食 / 备注" tone="green" />
         <ScoreCard
           label="起床"
-          value={WAKE_STATUS_LABELS[wakeSummary.status]}
-          detail={wakeSummary.actualWakeTime || '未记录'}
-          tone={
-            wakeSummary.status === 'ok'
-              ? 'green'
-              : wakeSummary.status === 'late'
-                ? 'red'
-                : 'yellow'
-          }
+          value={wakeCardLabel}
+          detail={wakeCardDetail}
+          tone={wakeCardTone}
         />
         <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
         <ScoreCard
@@ -1179,7 +1248,7 @@ export default function BodyPanel({
         )}
       </div>
 
-      <div className={bodyPublicView ? 'grid items-start gap-5 xl:grid-cols-[minmax(760px,1fr)_320px]' : 'grid items-start gap-5 xl:grid-cols-[280px_minmax(720px,1fr)_300px]'}>
+      <div className={bodyPublicView ? 'grid gap-5' : 'grid items-start gap-5 xl:grid-cols-[280px_minmax(720px,1fr)_300px]'}>
         <DisciplinePanel
           bodyPublicView={bodyPublicView}
           disciplineStats={disciplineStats}
@@ -1298,30 +1367,29 @@ export default function BodyPanel({
           </div>
         </Card>
 
-        <div className="space-y-5">
-          {bodyPublicView ? null : (
-            <RescueFlow
-              activeReward={activeReward}
-              bodyPublicView={bodyPublicView}
-              onAcknowledgeReward={acknowledgeReward}
-              onChooseAlternative={chooseAlternative}
-              onDelayUrge={delayUrge}
-              onMarkLost={markLostFromRescue}
-              onMarkResolved={markResolvedFromRescue}
-              onStartRescue={startRescue}
-              rescueFeedback={rescueFeedback}
-              rescueState={rescueState}
-            />
-          )}
-          <WakeSupervisionPanel
-            bodyRecords={bodyRecords}
-            onSetTargetWakeTime={setTargetWakeTime}
-            record={record}
-            selectedDate={selectedDate}
-            wakeSettings={wakeSettings}
+        {bodyPublicView ? null : (
+          <RescueFlow
+            activeReward={activeReward}
+            bodyPublicView={bodyPublicView}
+            onAcknowledgeReward={acknowledgeReward}
+            onChooseAlternative={chooseAlternative}
+            onDelayUrge={delayUrge}
+            onMarkLost={markLostFromRescue}
+            onMarkResolved={markResolvedFromRescue}
+            onStartRescue={startRescue}
+            rescueFeedback={rescueFeedback}
+            rescueState={rescueState}
           />
-        </div>
+        )}
       </div>
+
+      <WakeSupervisionPanel
+        bodyRecords={bodyRecords}
+        onSetTargetWakeTime={setTargetWakeTime}
+        record={record}
+        selectedDate={selectedDate}
+        wakeSettings={wakeSettings}
+      />
 
       {bodyPublicView ? null : (
         <Card title="身体摘要" eyebrow="Summary">
