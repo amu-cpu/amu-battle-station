@@ -808,12 +808,14 @@ function App() {
       />
     ),
     finance: (
-      <FinancePanel
-        assets={financeAssets}
-        setAssets={setFinanceAssets}
-        privacyMode={privacyMode}
-        setPrivacyMode={setPrivacyMode}
-      />
+      <div className="finance-wide-shell">
+        <FinancePanel
+          assets={financeAssets}
+          setAssets={setFinanceAssets}
+          privacyMode={privacyMode}
+          setPrivacyMode={setPrivacyMode}
+        />
+      </div>
     ),
     review: <ReviewPanel selectedDate={selectedDate} reviewRecords={reviewByDate} setReviewRecords={setReviewByDate} />,
     reminders: (

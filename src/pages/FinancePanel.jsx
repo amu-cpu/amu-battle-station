@@ -28,6 +28,8 @@ import {
   restoreProjectBackupPayload,
 } from '../utils/storage'
 
+const FINANCE_ACTION_LOG_KEY = 'amu-battle-station:finance-action-log'
+
 const emptyAsset = {
   name: '',
   amount: 0,
@@ -822,6 +824,8 @@ function getActionItems(rows) {
       const aRank = actionLevels[a.actionLevel]?.rank || 99
       const bRank = actionLevels[b.actionLevel]?.rank || 99
       if (aRank !== bRank) return aRank - bRank
+      if (a.actionLevel === 'cooldown' && b.actionLevel !== 'cooldown') return -1
+      if (b.actionLevel === 'cooldown' && a.actionLevel !== 'cooldown') return 1
       return b.ratio - a.ratio
     })
 }
@@ -895,6 +899,36 @@ function getActionSummaryLevel(rows) {
   return rows.length ? 'attention' : 'neutral'
 }
 
+function buildTodayDecision({ actionItems, cashGap, cooldownCount }) {
+  if (cashGap > 0 && cooldownCount > 0) {
+    return '今日总判断：优先补现金池；冷静期资产禁止重复卖出；其余资产按计划观察。'
+  }
+  if (cashGap > 0) {
+    return '今日总判断：优先补现金池，其余资产暂不操作。'
+  }
+  if (cooldownCount > 0) {
+    return '今日总判断：冷静期内禁止重复操作，其他资产继续观察。'
+  }
+  if (actionItems.length > 0) {
+    return '今日总判断：有资产需要关注，先看清单，不执行真实交易。'
+  }
+  return '今日总判断：今日无需操作，按计划执行即可。'
+}
+
+function readActionLog() {
+  try {
+    const value = window.localStorage.getItem(FINANCE_ACTION_LOG_KEY)
+    const parsed = value ? JSON.parse(value) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function writeActionLog(records) {
+  window.localStorage.setItem(FINANCE_ACTION_LOG_KEY, JSON.stringify(records))
+}
+
 function getStripeStyle(row) {
   const config = actionLevels[row.actionLevel] || actionLevels.neutral
   return { borderLeftColor: config.text }
@@ -911,6 +945,9 @@ export default function FinancePanel({
   const [emotionVisible, setEmotionVisible] = useState(false)
   const [editingCell, setEditingCell] = useState(null)
   const [expandedRow, setExpandedRow] = useState(null)
+  const [tableMode, setTableMode] = useState('full')
+  const [recordsOpen, setRecordsOpen] = useState(false)
+  const [actionLog, setActionLog] = useState(() => readActionLog())
   const [saveNotice, setSaveNotice] = useState('')
   const [backupNotice, setBackupNotice] = useState('')
   const importInputRef = useRef(null)
@@ -939,6 +976,12 @@ export default function FinancePanel({
   const highCount = rows.filter((row) => row.status === '偏高').length
   const lowCount = rows.filter((row) => row.status === '偏低').length
   const actionSummaryLevel = getActionSummaryLevel(actionItems)
+  const todayDecision = buildTodayDecision({
+    actionItems,
+    cashGap,
+    cooldownCount,
+  })
+  const compactTable = tableMode === 'compact'
 
   function showSavedNotice() {
     setSaveNotice('已保存')
@@ -984,6 +1027,21 @@ export default function FinancePanel({
 
   function deleteAsset(assetIndex) {
     setAssets((current) => current.filter((_, index) => index !== assetIndex))
+  }
+
+  function markActionRead(row) {
+    const record = {
+      id: `finance-action-${row.__index}-${row.name}-${row.actionLevel}-${actionLog.length}`,
+      createdAt: new Date().toISOString(),
+      assetName: row.name || '',
+      actionLevel: actionLevels[row.actionLevel]?.label || row.actionLevel,
+      nextAction: row.nextAction,
+      operationType: '标记已读',
+    }
+    const nextLog = [record, ...actionLog].slice(0, 80)
+    setActionLog(nextLog)
+    writeActionLog(nextLog)
+    showBackupNotice('已标记为已读，仅用于本地记录。')
   }
 
   function startCellEdit(row, field) {
@@ -1267,7 +1325,7 @@ export default function FinancePanel({
         <RadarMetricCard
           label="今日需动作"
           value={actionItems.length ? `${actionItems.length} 个` : '无需操作'}
-          detail={actionItems.length ? '按清单优先处理' : '按计划执行'}
+          detail={actionItems.length ? '需要关注，先阅读清单' : '按计划执行'}
           level={actionSummaryLevel}
           icon={ShieldAlert}
         />
@@ -1287,12 +1345,21 @@ export default function FinancePanel({
       </div>
 
       <Card title="今日动作清单" eyebrow="Action">
+        <div
+          className="mb-4 rounded-lg border p-3 text-sm font-black leading-6"
+          style={{
+            backgroundColor: actionLevels[actionSummaryLevel]?.bg,
+            color: actionLevels[actionSummaryLevel]?.text,
+          }}
+        >
+          {todayDecision}
+        </div>
         {actionItems.length ? (
           <div className="space-y-3">
             {actionItems.map((row) => (
               <div
                 key={row.id || `${row.name}-${row.__index}`}
-                className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(160px,1fr)_140px_minmax(220px,1.2fr)_minmax(260px,1.4fr)_120px]"
+                className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[minmax(160px,1fr)_150px_minmax(220px,1.1fr)_minmax(260px,1.35fr)_120px_120px]"
                 style={getRowStyle(row)}
               >
                 <div>
@@ -1309,6 +1376,9 @@ export default function FinancePanel({
                   下一步：{row.nextAction}
                 </p>
                 <Badge tone={row.tone}>{row.attentionLevel}</Badge>
+                <Button type="button" variant="secondary" onClick={() => markActionRead(row)}>
+                  标记已读
+                </Button>
               </div>
             ))}
           </div>
@@ -1329,7 +1399,7 @@ export default function FinancePanel({
             icon={Plus}
             onClick={() => setFormOpen((value) => !value)}
           >
-            新增资产
+            {formOpen ? '收起新增' : '新增资产'}
           </Button>
         }
       >
@@ -1388,7 +1458,7 @@ export default function FinancePanel({
           </form>
         ) : (
           <p className="text-sm font-semibold text-slate-500">
-            不是每天新增资产，默认收起。需要时点右上角按钮展开。
+            不是每天新增资产，默认收起。需要时点击右上角按钮展开。
           </p>
         )}
       </Card>
@@ -1397,13 +1467,24 @@ export default function FinancePanel({
         title="持仓雷达表"
         eyebrow="Radar"
         action={
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setEmotionVisible((value) => !value)}
-          >
-            禁止情绪化操作
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant={compactTable ? 'primary' : 'secondary'}
+              onClick={() =>
+                setTableMode((current) => (current === 'full' ? 'compact' : 'full'))
+              }
+            >
+              {compactTable ? '完整模式' : '简洁模式'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEmotionVisible((value) => !value)}
+            >
+              禁止情绪化操作
+            </Button>
+          </div>
         }
       >
         {emotionVisible ? (
@@ -1413,22 +1494,22 @@ export default function FinancePanel({
         ) : null}
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
+          <table className={`${compactTable ? 'min-w-[1120px]' : 'min-w-[1640px]'} w-full table-fixed border-collapse text-left text-sm`}>
             <thead>
-              <tr className="border-b border-slate-200 text-slate-500">
-                <th className="py-2 pr-3">资产</th>
-                <th className="py-2 pr-3">金额</th>
-                <th className="py-2 pr-3">当前占比</th>
-                <th className="py-2 pr-3">目标</th>
-                <th className="py-2 pr-3">下限</th>
-                <th className="py-2 pr-3">上限</th>
-                <th className="py-2 pr-3">距边界</th>
-                <th className="py-2 pr-3">当前档位</th>
-                <th className="py-2 pr-3">下一动作</th>
-                <th className="py-2 pr-3">关注级别</th>
-                <th className="py-2 pr-3">冷静期</th>
-                <th className="py-2 pr-3">备注</th>
-                <th className="py-2 pr-3">操作</th>
+              <tr className="border-b border-slate-200 text-slate-500 [&>th]:whitespace-nowrap">
+                <th className="w-[180px] py-2 pr-3">资产</th>
+                <th className="w-[140px] py-2 pr-3">金额</th>
+                <th className="w-[110px] py-2 pr-3">当前占比</th>
+                {!compactTable ? <th className="w-[90px] py-2 pr-3">目标</th> : null}
+                {!compactTable ? <th className="w-[90px] py-2 pr-3">下限</th> : null}
+                {!compactTable ? <th className="w-[90px] py-2 pr-3">上限</th> : null}
+                {!compactTable ? <th className="w-[130px] py-2 pr-3">距边界</th> : null}
+                <th className="w-[140px] py-2 pr-3">当前档位</th>
+                <th className="w-[280px] py-2 pr-3">下一动作</th>
+                <th className="w-[150px] py-2 pr-3">关注级别</th>
+                <th className="w-[170px] py-2 pr-3">冷静期</th>
+                {!compactTable ? <th className="w-[220px] py-2 pr-3">备注</th> : null}
+                <th className="w-[100px] py-2 pr-3">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -1454,12 +1535,14 @@ export default function FinancePanel({
                         privacyMode ? '****' : formatCurrency(row.amount),
                       )}
                       <td className="py-3 pr-3">{formatPercent(row.ratio)}</td>
-                      {renderEditableCell(row, 'target', formatPercent(row.target))}
-                      {renderEditableCell(row, 'lower', formatPercent(row.lower))}
-                      {renderEditableCell(row, 'upper', formatPercent(row.upper))}
-                      <td className="py-3 pr-3 font-semibold text-slate-700">
-                        {row.distanceToBoundary}
-                      </td>
+                      {!compactTable ? renderEditableCell(row, 'target', formatPercent(row.target)) : null}
+                      {!compactTable ? renderEditableCell(row, 'lower', formatPercent(row.lower)) : null}
+                      {!compactTable ? renderEditableCell(row, 'upper', formatPercent(row.upper)) : null}
+                      {!compactTable ? (
+                        <td className="py-3 pr-3 font-semibold text-slate-700">
+                          {row.distanceToBoundary}
+                        </td>
+                      ) : null}
                       <td className="py-3 pr-3">
                         <Badge tone={row.tone}>{row.investmentGear}</Badge>
                       </td>
@@ -1483,12 +1566,14 @@ export default function FinancePanel({
                           '—'
                         )}
                       </td>
-                      {renderEditableCell(
-                        row,
-                        'note',
-                        row.note || '-',
-                        'max-w-64 text-slate-600',
-                      )}
+                      {!compactTable
+                        ? renderEditableCell(
+                            row,
+                            'note',
+                            row.note || '-',
+                            'max-w-64 text-slate-600',
+                          )
+                        : null}
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-1">
                           <button
@@ -1520,7 +1605,7 @@ export default function FinancePanel({
                     </tr>
                     {rowExpanded ? (
                       <tr className="bg-slate-50">
-                        <td colSpan={13} className="px-4 py-3">
+                        <td colSpan={compactTable ? 8 : 13} className="px-4 py-3">
                           <div className="grid gap-3 text-sm text-slate-700 md:grid-cols-3">
                             <p>
                               <span className="font-black text-slate-900">触发原因：</span>
@@ -1547,6 +1632,51 @@ export default function FinancePanel({
           </table>
         </div>
       </Card>
+
+      <Card
+        title="处理记录"
+        eyebrow="Log"
+        action={
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => setRecordsOpen((value) => !value)}
+          >
+            {recordsOpen ? '收起记录' : '展开记录'}
+          </Button>
+        }
+      >
+        {recordsOpen ? (
+          actionLog.length ? (
+            <div className="divide-y divide-slate-100">
+              {actionLog.slice(0, 12).map((item) => (
+                <div key={item.id} className="grid gap-2 py-3 text-sm md:grid-cols-[180px_160px_160px_1fr]">
+                  <p className="font-semibold text-slate-500">
+                    {new Date(item.createdAt).toLocaleString('zh-CN')}
+                  </p>
+                  <p className="font-black text-slate-900">{item.assetName || '-'}</p>
+                  <p className="font-semibold text-slate-700">{item.operationType}</p>
+                  <p className="font-semibold text-slate-600">
+                    {item.actionLevel} · {item.nextAction}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-slate-500">
+              还没有处理记录。点击动作清单里的“标记已读”后会记录在这里。
+            </p>
+          )
+        ) : (
+          <p className="text-sm font-semibold text-slate-500">
+            默认收起，只记录提醒已读情况，不执行真实交易。
+          </p>
+        )}
+      </Card>
+
+      <p className="text-sm font-semibold text-slate-500">
+        本页只做记录和提醒，不执行真实交易。
+      </p>
     </div>
   )
 }

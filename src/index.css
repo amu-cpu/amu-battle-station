@@ -74,3 +74,13 @@ textarea {
   font-size: 1.25rem;
   line-height: 1.75rem;
 }
+
+.finance-wide-shell {
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .finance-wide-shell {
+    width: 100%;
+  }
+}
