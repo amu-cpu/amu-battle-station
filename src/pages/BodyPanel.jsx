@@ -382,7 +382,6 @@ function BodyNoteEditor({ open, note, onChange, onToggle }) {
 function RescueFlow({
   activeReward,
   bodyPublicView,
-  disciplineStats,
   onAcknowledgeReward,
   onChooseAlternative,
   onDelayUrge,
@@ -392,10 +391,19 @@ function RescueFlow({
   rescueFeedback,
   rescueState,
 }) {
+  if (bodyPublicView) return null
+
   const showCurrentStep = rescueState.active
+  const hasPaused =
+    rescueState.active &&
+    (rescueState.step === 'alternative' || rescueState.step === 'result')
+  const hasChosenAlternative =
+    rescueState.active &&
+    rescueState.step === 'result' &&
+    rescueState.selectedAlternativeAction
 
   return (
-    <Card title="急救模式" eyebrow="Rescue" className="min-h-[540px]">
+    <Card title="急救模式" eyebrow="Rescue" className="min-h-[500px]">
       <div className="space-y-4">
         {!rescueState.active ? (
           <>
@@ -412,36 +420,36 @@ function RescueFlow({
                 {rescueFeedback}
               </div>
             ) : null}
-            <div className="space-y-1 text-xs font-medium text-slate-500">
-              <p>下一步：换一个动作</p>
-              <p>最后：记录结果</p>
-            </div>
           </>
+        ) : null}
+
+        {hasPaused ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
+            已暂停：延迟 15 分钟
+          </div>
         ) : null}
 
         {showCurrentStep && rescueState.step === 'pause' ? (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">当前步骤</p>
+            <p className="text-xs font-semibold text-slate-400">下一步</p>
             <h3 className="mt-1 text-base font-black text-slate-950">第一步：先暂停</h3>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-              冲动不是命令，先离开屏幕 15 分钟。
+              冲动不是命令，先离开屏幕。
             </p>
             <Button type="button" variant="primary" className="mt-3 w-full" onClick={onDelayUrge}>
               延迟 15 分钟
             </Button>
-          </div>
-        ) : null}
-
-        {!rescueState.active && rescueState.startedAt ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
-            已暂停：延迟 15 分钟
+            <div className="mt-3 space-y-1 text-xs font-medium text-slate-400">
+              <p>下一步：换个动作</p>
+              <p>最后：记录结果</p>
+            </div>
           </div>
         ) : null}
 
         {showCurrentStep && rescueState.step === 'alternative' ? (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">当前步骤</p>
-            <h3 className="mt-1 text-base font-black text-slate-950">第二步：换一个动作</h3>
+            <p className="text-xs font-semibold text-slate-400">下一步</p>
+            <h3 className="mt-1 text-base font-black text-slate-950">第二步：换个动作</h3>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
               选一个低刺激动作，先把身体挪开。
             </p>
@@ -456,7 +464,7 @@ function RescueFlow({
                   key={action}
                   type="button"
                   onClick={() => onChooseAlternative(action)}
-                  className={`rounded-md border px-3 py-2 text-left text-sm font-semibold transition ${
+                  className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm font-semibold transition ${
                     rescueState.selectedAlternativeAction === action
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                       : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -469,24 +477,19 @@ function RescueFlow({
           </div>
         ) : null}
 
-        {!showCurrentStep && rescueState.step === 'alternative' ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
+        {hasChosenAlternative ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">
             已选择：{rescueState.selectedAlternativeAction}
           </div>
         ) : null}
 
         {showCurrentStep && rescueState.step === 'result' ? (
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">当前步骤</p>
+            <p className="text-xs font-semibold text-slate-400">下一步</p>
             <h3 className="mt-1 text-base font-black text-slate-950">第三步：记录结果</h3>
             <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
-              记录结果会同步到今天的自律状态和身体历史。
+              结果会同步到今日自律状态和历史记录。
             </p>
-            {rescueState.selectedAlternativeAction ? (
-              <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-                已选择：{rescueState.selectedAlternativeAction}
-              </p>
-            ) : null}
             <div className="mt-3 space-y-2">
               <Button type="button" variant="primary" className="w-full" onClick={onMarkResolved}>
                 我扛过去了
@@ -503,12 +506,6 @@ function RescueFlow({
             <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
               先完成记录，再继续下一步。
             </p>
-          </div>
-        ) : null}
-
-        {!showCurrentStep && rescueState.step === 'result' ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
-            已选择：{rescueState.selectedAlternativeAction}
           </div>
         ) : null}
 
@@ -533,11 +530,6 @@ function RescueFlow({
           </div>
         ) : null}
 
-        {bodyPublicView ? null : (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-500">
-            当前阶段：{disciplineStats.stage.label}
-          </div>
-        )}
       </div>
     </Card>
   )
@@ -558,15 +550,15 @@ function DisciplinePanel({
   if (bodyPublicView) return null
 
   return (
-    <Card title="自律防线" eyebrow="Discipline" className="min-h-[540px]">
-      <div className="space-y-4">
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <Card title="自律防线" eyebrow="Discipline" className="min-h-[500px]">
+      <div className="space-y-3">
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3">
           <p className="text-xs font-semibold text-slate-500">连续达标</p>
-          <p className="mt-1 text-4xl font-black text-slate-950">{disciplineStats.streak} 天</p>
+          <p className="mt-1 text-3xl font-black text-slate-950">{disciplineStats.streak} 天</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
             <p className="text-xs font-semibold text-slate-500">距上次失守</p>
             <p className="mt-1 text-lg font-black text-slate-950">
               {disciplineStats.daysSinceLastLost === null
@@ -574,18 +566,18 @@ function DisciplinePanel({
                 : `${disciplineStats.daysSinceLastLost} 天`}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-2.5">
             <p className="text-xs font-semibold text-slate-500">本月次数</p>
             <p className="mt-1 text-lg font-black text-slate-950">{disciplineStats.monthLostCount}</p>
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2.5">
           <p className="text-sm font-semibold text-slate-700">当前阶段</p>
           <Badge tone={disciplineStats.stage.tone}>{disciplineStats.stage.label}</Badge>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
           <p className="text-xs font-semibold text-slate-500">奖励进度</p>
           <p className="mt-1 text-sm font-semibold text-slate-800">
             {disciplineStats.rewardProgressText}
@@ -593,51 +585,52 @@ function DisciplinePanel({
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="text-xs font-semibold text-slate-500">今日自律</p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">
-            {relapseStatus === 'no'
-              ? '达标'
-              : relapseStatus === 'yes'
-                ? '失守'
-                : '未记录'}
-          </p>
-          <p className="mt-2 text-sm font-medium leading-6 text-slate-600">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-slate-500">今日自律</p>
+            <p className="text-sm font-semibold text-slate-800">
+              {relapseStatus === 'no'
+                ? '达标'
+                : relapseStatus === 'yes'
+                  ? '失守'
+                  : '未记录'}
+            </p>
+          </div>
+          <p className="mt-1 text-xs font-semibold leading-4 text-slate-500">
             {relapseStatus === 'no'
               ? '今天已达标，继续保持低刺激放松。'
               : relapseStatus === 'yes'
                 ? '重新开始，不要补偿性放纵，先守住剩下时间。'
                 : '先记录事实，不用审判自己。'}
           </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-2">
-          {RELAPSE_STATUS_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onSetStatus(option.value)}
-              className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                relapseStatus === option.value
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {RELAPSE_STATUS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onSetStatus(option.value)}
+                className={`min-h-9 rounded-md border px-2 py-1.5 text-xs font-semibold transition ${
+                  relapseStatus === option.value
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {relapseStatus === 'yes' ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div>
               <p className="mb-2 text-xs font-semibold text-slate-500">触发源（可选）</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {RELAPSE_TYPE_OPTIONS.map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => onToggleType(type)}
-                    className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition ${
+                    className={`min-h-8 rounded-md border px-2 py-1 text-xs font-semibold transition ${
                       relapseTypes.includes(type)
                         ? 'border-rose-200 bg-rose-50 text-rose-700'
                         : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -1033,7 +1026,7 @@ export default function BodyPanel({
         )}
       </div>
 
-      <div className={bodyPublicView ? 'grid gap-5' : 'grid items-start gap-5 xl:grid-cols-[300px_minmax(680px,1fr)_340px] min-[1440px]:grid-cols-[300px_minmax(680px,1fr)_340px]'}>
+      <div className={bodyPublicView ? 'grid gap-5' : 'grid items-start gap-5 xl:grid-cols-[280px_minmax(720px,1fr)_300px]'}>
         <DisciplinePanel
           bodyPublicView={bodyPublicView}
           disciplineStats={disciplineStats}
@@ -1055,7 +1048,7 @@ export default function BodyPanel({
               <button
                 type="button"
                 onClick={() => setBodyPublicView(!bodyPublicView)}
-                className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="min-h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
                 展示模式：{bodyPublicView ? '公开' : '完整'}
               </button>
@@ -1133,7 +1126,7 @@ export default function BodyPanel({
                     key={option}
                     type="button"
                     onClick={() => appendExercise(option)}
-                    className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                    className="min-h-10 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                   >
                     {option}
                   </button>
@@ -1154,7 +1147,6 @@ export default function BodyPanel({
         <RescueFlow
           activeReward={activeReward}
           bodyPublicView={bodyPublicView}
-          disciplineStats={disciplineStats}
           onAcknowledgeReward={acknowledgeReward}
           onChooseAlternative={chooseAlternative}
           onDelayUrge={delayUrge}
@@ -1167,11 +1159,11 @@ export default function BodyPanel({
       </div>
 
       {bodyPublicView ? null : (
-        <Card title="身体摘要" eyebrow="Summary" className="min-h-[280px]">
+        <Card title="身体摘要" eyebrow="Summary">
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm font-semibold text-slate-500">最近 7 天身体摘要</p>
-              <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              <div className="mt-3 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-2">
                 <p>平均睡眠：{historyStats.averageSleep} 小时</p>
                 <p>最近体重：{historyStats.latestWeight}</p>
                 <p>运动天数：{historyStats.exerciseDays}</p>
@@ -1215,7 +1207,7 @@ export default function BodyPanel({
           <button
             type="button"
             onClick={() => setHistoryExpanded((current) => !current)}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="min-h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
             {historyExpanded ? '收起完整历史' : '展开完整历史'}
           </button>
