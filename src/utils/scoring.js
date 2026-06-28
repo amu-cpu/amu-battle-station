@@ -19,6 +19,30 @@ function getExerciseValue(record) {
   return record?.exerciseText || (record?.exercise !== '未记录' ? record?.exercise : '')
 }
 
+const DEFAULT_WEIGHT_TARGET = { lower: 132, upper: 136 }
+
+function parseTimeToMinutes(value) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/)
+  if (!match) return null
+  const hours = Number(match[1])
+  const minutes = Number(match[2])
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
+}
+
+function isWakeOnTime(record, targetWakeTime) {
+  const actualMinutes = parseTimeToMinutes(record?.wakeTime || record?.wakeUpTime || record?.起床时间)
+  const targetMinutes = parseTimeToMinutes(targetWakeTime)
+  return actualMinutes !== null && targetMinutes !== null && actualMinutes <= targetMinutes
+}
+
+function isWeightInTarget(record, weightTarget = DEFAULT_WEIGHT_TARGET) {
+  const weight = toNumber(record?.weight)
+  if (!weight) return false
+  return weight >= weightTarget.lower && weight <= weightTarget.upper
+}
+
 export function getRelapseStatus(record) {
   const text = String(record?.relapseStatus ?? record?.是否破戒 ?? '').trim()
   if (['yes', '是', '有', '破戒'].includes(text)) return 'yes'
@@ -113,15 +137,17 @@ export function getOperationDiagnosis(summary) {
   return '继续补齐漏斗数据，先看哪一环断了。'
 }
 
-export function calculateBodyScore(record) {
+export function calculateBodyScore(record, options = {}) {
   if (!record) return 0
 
+  const weightTarget = options.weightTarget || DEFAULT_WEIGHT_TARGET
+  const targetWakeTime = options.targetWakeTime || ''
   let score = 0
-  if (toNumber(record.sleepHours) >= 7) score += 30
-  if (isFilled(getExerciseValue(record))) score += 30
-  if (String(record.weight || '').trim()) score += 10
-  if (hasBodyDiet(record)) score += 20
-  if (String(record.note || '').trim()) score += 10
+  if (toNumber(record.sleepHours) >= 7) score += 10
+  if (isWakeOnTime(record, targetWakeTime)) score += 10
+  if (isFilled(getExerciseValue(record))) score += 10
+  if (String(record.weight || '').trim()) score += 5
+  if (isWeightInTarget(record, weightTarget)) score += 5
   if (getRelapseStatus(record) === 'no') score += 10
 
   return clampScore(score)
@@ -137,6 +163,8 @@ export function hasBodyDiet(record) {
         isFilled(record.eveningSnack) ||
         isFilled(record.legacySnack) ||
         isFilled(record.extraMeal) ||
+        isFilled(record.dietNote) ||
+        (isFilled(record.dietStatus) && record.dietStatus !== '未记录') ||
         isFilled(record.加餐)),
   )
 }

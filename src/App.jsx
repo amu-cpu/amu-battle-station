@@ -488,7 +488,9 @@ function App() {
     ...(learningRecordsByDate[selectedDate] || {}),
   }
   const operationScore = calculateOperationScore(operationSummary)
-  const bodyScore = calculateBodyScore(bodyByDate[selectedDate] ? bodyRecord : null)
+  const bodyScore = calculateBodyScore(bodyByDate[selectedDate] ? bodyRecord : null, {
+    targetWakeTime: wakeSettings.finalWakeTime || wakeSettings.targetWakeTime,
+  })
   const effectiveTasks = applyTaskAutomation(tasks, { operationSummary, bodyRecord, reviewRecord })
   const dashboardScoreTasks = effectiveTasks.filter((task) => task.category !== '资金')
   const taskScore = calculateTaskScore(dashboardScoreTasks)

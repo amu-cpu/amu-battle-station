@@ -72,6 +72,7 @@ const RELAPSE_LABELS = {
 }
 
 const RESCUE_STEPS = new Set(['pause', 'alternative', 'result'])
+const WEIGHT_TARGET_RANGE = { lower: 132, upper: 136 }
 
 function displayExercise(value) {
   return value && value !== '未记录' ? value : ''
@@ -94,6 +95,48 @@ function getLegacySnack(record) {
 function getSnackSummary(record) {
   const snacks = [record?.afternoonSnack, record?.eveningSnack].filter(Boolean)
   return snacks.length ? snacks.join(' / ') : getLegacySnack(record)
+}
+
+function getDietStatus(record) {
+  const status = String(record?.dietStatus || '未记录').trim()
+  return status || '未记录'
+}
+
+function getDietNote(record) {
+  return String(record?.dietNote || '').trim()
+}
+
+function getWeightState(record) {
+  const weight = Number(record?.weight)
+  if (!Number.isFinite(weight) || weight <= 0) {
+    return {
+      label: '未记',
+      detail: '记录体重',
+      tone: 'yellow',
+    }
+  }
+
+  if (weight < WEIGHT_TARGET_RANGE.lower) {
+    return {
+      label: '偏低',
+      detail: '低于目标区间',
+      tone: 'red',
+    }
+  }
+
+  if (weight > WEIGHT_TARGET_RANGE.upper) {
+    return {
+      label: '偏高',
+      detail: '高于目标区间',
+      tone: 'red',
+    }
+  }
+
+  return {
+    label: '维持中',
+    detail: '处于目标区间',
+    tone: 'green',
+  }
 }
 
 function getDisciplineLabel(record) {
@@ -264,17 +307,13 @@ function getRecentBodyStats(history) {
         sleepValues.reduce((total, value) => total + value, 0) / sleepValues.length
       ).toFixed(1)
     : '0.0'
-  const latestWeight = [...recent].find((item) => item?.weight)?.weight || '-'
   const exerciseDays = recent.filter((item) => getExerciseText(item)).length
-  const mealDays = recent.filter((item) =>
-    [item?.lunch, item?.dinner, getSnackSummary(item)].some(Boolean),
-  ).length
+  const weightDays = recent.filter((item) => Number(item?.weight) > 0).length
 
   return {
     averageSleep,
-    latestWeight,
     exerciseDays,
-    mealDays,
+    weightDays,
   }
 }
 
@@ -849,6 +888,13 @@ function WakeSupervisionPanel({
   )
 }
 
+function getLegacyMealDetail(record) {
+  const detail = getDietNote(record)
+  const legacy = [record?.lunch, record?.dinner, getSnackSummary(record)].filter(Boolean).join(' / ')
+  const fallback = legacy || '—'
+  return detail ? `${fallback} · ${detail}` : fallback
+}
+
 export default function BodyPanel({
   selectedDate,
   bodyRecords,
@@ -880,18 +926,18 @@ export default function BodyPanel({
       : wakeStatus === 'unrecorded'
         ? '未记录'
         : '晚起'
-  const wakeCardTone =
-    wakeStatus === 'on_time'
-      ? 'green'
-      : wakeStatus === 'unrecorded'
-        ? 'yellow'
-        : 'red'
   const wakeCardDetail =
     wakeStatus === 'on_time'
       ? '今日已达标'
       : wakeStatus === 'unrecorded'
         ? '未记录'
         : `晚起 ${wakeDelayMinutes || 0} 分钟`
+  const wakeStatusTone =
+    wakeStatus === 'on_time'
+      ? 'green'
+      : wakeStatus === 'unrecorded'
+        ? 'yellow'
+        : 'red'
 
   const disciplineStats = (() => {
     const entries = Object.values(bodyRecords)
@@ -930,6 +976,8 @@ export default function BodyPanel({
   )
   const historyStats = getRecentBodyStats(history)
   const disciplineHistoryStats = getRecentDisciplineStats(history)
+  const wakeStats = calculateWakeStats(bodyRecords, targetWakeTime, selectedDate)
+  const weightState = getWeightState(record)
 
   function setTargetWakeTime(value) {
     setWakeSettings((current) => ({
@@ -1148,7 +1196,7 @@ export default function BodyPanel({
     return (
       <div className="mt-4 overflow-x-auto">
         <table
-          className={`${bodyPublicView ? 'min-w-[840px]' : 'min-w-[960px]'} w-full border-collapse text-left text-sm`}
+          className={`${bodyPublicView ? 'min-w-[960px]' : 'min-w-[1120px]'} w-full border-collapse text-left text-sm`}
         >
           <thead>
             <tr className="border-b border-slate-200 text-slate-500">
@@ -1157,8 +1205,9 @@ export default function BodyPanel({
               <th className="py-2 pr-3">睡眠</th>
               <th className="py-2 pr-3">运动</th>
               {bodyPublicView ? null : <th className="py-2 pr-3">自律状态</th>}
-              <th className="py-2 pr-3">饮食</th>
+              <th className="py-2 pr-3">饮食状态</th>
               <th className="py-2 pr-3">备注</th>
+              <th className="py-2 pr-3">更多详情</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -1179,17 +1228,31 @@ export default function BodyPanel({
                       ) : null}
                     </td>
                   )}
-                  <td className="max-w-64 py-3 pr-3 text-slate-600">
-                    {[item.lunch, item.dinner, getSnackSummary(item)]
-                      .filter(Boolean)
-                      .join(' / ') || '-'}
+                  <td className="py-3 pr-3">
+                    <Badge
+                      tone={
+                        getDietStatus(item) === '正常'
+                          ? 'success'
+                          : getDietStatus(item) === '吃多了' || getDietStatus(item) === '没吃好'
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                    >
+                      {getDietStatus(item)}
+                    </Badge>
                   </td>
                   <td className="max-w-64 py-3 pr-3 text-slate-600">{item.note || '-'}</td>
+                  <td className="max-w-72 py-3 pr-3 text-slate-600">
+                    <p>{getLegacyMealDetail(item)}</p>
+                    {getDietNote(item) ? (
+                      <p className="mt-1 line-clamp-2 text-xs text-slate-500">{getDietNote(item)}</p>
+                    ) : null}
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td className="py-6 text-slate-500" colSpan={bodyPublicView ? 6 : 7}>
+                <td className="py-6 text-slate-500" colSpan={bodyPublicView ? 7 : 8}>
                   还没有身体记录，先填今天。
                 </td>
               </tr>
@@ -1207,16 +1270,16 @@ export default function BodyPanel({
           身体打卡台 · {formatDateLabel(selectedDate)}
         </p>
         <h1 className="mt-2 text-3xl font-black text-slate-950">身体是本金，别熬夜硬扛</h1>
-        <p className="mt-2 text-sm text-slate-600">记录睡眠、饮食和运动，把状态稳住。</p>
+        <p className="mt-2 text-sm text-slate-600">记录睡眠、作息和运动，把体态稳住。</p>
       </header>
 
       <div className={bodyPublicView ? 'grid gap-4 sm:grid-cols-2 xl:grid-cols-5' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-6'}>
-        <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 运动 / 饮食 / 备注" tone="green" />
+        <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 起床 / 运动 / 体重维持" tone="green" />
         <ScoreCard
           label="起床"
           value={wakeCardLabel}
           detail={wakeCardDetail}
-          tone={wakeCardTone}
+          tone={wakeStatusTone}
         />
         <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
         <ScoreCard
@@ -1225,7 +1288,7 @@ export default function BodyPanel({
           detail="完成运动加 30 分"
           tone={getExerciseText(record) ? 'green' : 'yellow'}
         />
-        <ScoreCard label="体重" value={record.weight || '未记'} detail="记录体重加 10 分" />
+        <ScoreCard label="体重" value={weightState.label} detail={weightState.detail} tone={weightState.tone} />
         {bodyPublicView ? null : (
           <ScoreCard
             label="自律"
@@ -1319,22 +1382,7 @@ export default function BodyPanel({
               placeholder="可自动计算，也可手动填"
               className="xl:col-span-2"
             />
-            <Input label="中餐" value={record.lunch} onChange={(event) => saveField('lunch', event.target.value)} placeholder="吃了什么" className="xl:col-span-2" />
-            <Input label="晚餐" value={record.dinner} onChange={(event) => saveField('dinner', event.target.value)} className="xl:col-span-3" />
-            <Input
-              label="下午加餐"
-              value={record.afternoonSnack || ''}
-              onChange={(event) => saveField('afternoonSnack', event.target.value)}
-              placeholder={getLegacySnack(record) || ''}
-              className="xl:col-span-3"
-            />
-            <Input
-              label="晚上加餐"
-              value={record.eveningSnack || ''}
-              onChange={(event) => saveField('eveningSnack', event.target.value)}
-              className="xl:col-span-3"
-            />
-            <div className="xl:col-span-6">
+            <div className="xl:col-span-8">
               <Input
                 as="textarea"
                 label="运动记录"
@@ -1356,7 +1404,20 @@ export default function BodyPanel({
                 ))}
               </div>
             </div>
-            <div className="xl:col-span-6">
+            <div className="grid gap-3 xl:col-span-4">
+              <Input
+                as="select"
+                label="饮食状态"
+                value={getDietStatus(record)}
+                onChange={(event) => saveField('dietStatus', event.target.value)}
+                options={['未记录', '正常', '吃多了', '没吃好']}
+              />
+              <Input
+                label="饮食备注"
+                value={getDietNote(record)}
+                onChange={(event) => saveField('dietNote', event.target.value)}
+                placeholder="可选：今天饮食有没有明显失控"
+              />
               <BodyNoteEditor
                 open={bodyNoteOpen}
                 note={record.note}
@@ -1393,16 +1454,18 @@ export default function BodyPanel({
 
       {bodyPublicView ? null : (
         <Card title="身体摘要" eyebrow="Summary">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-500">最近 7 天身体摘要</p>
-              <div className="mt-3 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-2">
-                <p>平均睡眠：{historyStats.averageSleep} 小时</p>
-                <p>最近体重：{historyStats.latestWeight}</p>
-                <p>运动天数：{historyStats.exerciseDays}</p>
-                <p>饮食记录天数：{historyStats.mealDays}</p>
-              </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-500">最近 7 天身体摘要</p>
+            <div className="mt-3 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-2">
+              <p>平均睡眠：{historyStats.averageSleep} 小时</p>
+              <p>平均起床：{wakeStats.averageWakeTime || '样本不足'}</p>
+              <p>运动天数：{historyStats.exerciseDays}</p>
+              <p>体重记录天数：{historyStats.weightDays}</p>
+              <p>早起达标率：{wakeStats.recordedDays ? `${wakeStats.onTimeDays}/${wakeStats.recordedDays} 天` : '样本不足'}</p>
+              <p>自律达标天数：{disciplineHistoryStats.counts.success}</p>
             </div>
+          </div>
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
               <p className="text-sm font-semibold text-slate-500">最近 7 天自律摘要</p>

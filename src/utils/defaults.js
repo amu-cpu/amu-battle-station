@@ -93,6 +93,8 @@ export const defaultBodyRecord = {
   afternoonSnack: '',
   eveningSnack: '',
   legacySnack: '',
+  dietStatus: '未记录',
+  dietNote: '',
   exercise: '未记录',
   exerciseText: '',
   relapseStatus: 'unrecorded',
