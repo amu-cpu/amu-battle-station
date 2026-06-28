@@ -19,8 +19,11 @@ export default function Input({
       {as === 'select' ? (
         <select className={`${baseClass} ${inputClassName}`} {...props}>
           {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
+            <option
+              key={typeof option === 'string' ? option : String(option?.value ?? option?.label ?? '')}
+              value={typeof option === 'string' ? option : option?.value ?? option?.label ?? ''}
+            >
+              {typeof option === 'string' ? option : option?.label ?? option?.value ?? ''}
             </option>
           ))}
         </select>

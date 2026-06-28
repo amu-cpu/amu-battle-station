@@ -130,6 +130,14 @@ function normalizeStoredNumber(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+function normalizeDietStatus(value) {
+  const text = String(value ?? '').trim()
+  if (['normal', '正常'].includes(text)) return 'normal'
+  if (['overeaten', '吃多了'].includes(text)) return 'overeaten'
+  if (['bad', '没吃好'].includes(text)) return 'bad'
+  return 'unrecorded'
+}
+
 function toDateMap(value) {
   return isPlainObject(value) ? value : {}
 }
@@ -458,6 +466,30 @@ export function migrateBodyRecord(record) {
     firstStoredValue(record, ['note', '身体备注', '备注']),
   )
 
+  next.dietNote = String(next.dietNote ?? '').trim()
+  next.dietStatusTouched = Boolean(next.dietStatusTouched)
+  const legacyDietStatus = firstStoredValue(record, [
+    'dietStatus',
+    'diet状态',
+    '饮食状态',
+  ])
+  const normalizedDietStatus = normalizeDietStatus(legacyDietStatus)
+  if (
+    normalizedDietStatus === 'normal' &&
+    !next.dietStatusTouched &&
+    !hasStoredValue(next.dietNote)
+  ) {
+    next.dietStatus = 'unrecorded'
+  } else {
+    next.dietStatus = normalizedDietStatus
+  }
+  if (next.dietStatus === 'unrecorded' && !next.dietStatusTouched) {
+    next.dietStatusTouched = false
+  }
+  if (!hasStoredValue(next.dietStatus) || next.dietStatus === '未记录') {
+    next.dietStatus = 'unrecorded'
+  }
+
   const legacySnack = firstStoredValue(record, [
     'legacySnack',
     'snack',
@@ -487,7 +519,7 @@ export function migrateBodyRecord(record) {
   fillIfEmpty(
     next,
     'exerciseText',
-    firstStoredValue(record, ['exerciseText', '运动记录']),
+    firstStoredValue(record, ['exerciseNote', 'exerciseText', '运动记录']),
   )
 
   if (
@@ -497,6 +529,9 @@ export function migrateBodyRecord(record) {
   ) {
     next.exerciseText = record.exercise
   }
+
+  fillIfEmpty(next, 'exerciseNote', firstStoredValue(record, ['exerciseNote', 'exerciseText']))
+  next.exerciseNote = next.exerciseNote ?? next.exerciseText ?? ''
 
   next.relapseStatus = normalizeRelapseStatus(
     firstStoredValue(next, [

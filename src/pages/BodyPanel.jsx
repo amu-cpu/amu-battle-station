@@ -73,6 +73,18 @@ const RELAPSE_LABELS = {
 
 const RESCUE_STEPS = new Set(['pause', 'alternative', 'result'])
 const WEIGHT_TARGET_RANGE = { lower: 132, upper: 136 }
+const DIET_STATUS_LABELS = {
+  unrecorded: '未记录',
+  normal: '正常',
+  overeaten: '吃多了',
+  bad: '没吃好',
+}
+const DIET_STATUS_OPTIONS = [
+  { value: 'unrecorded', label: '未记录' },
+  { value: 'normal', label: '正常' },
+  { value: 'overeaten', label: '吃多了' },
+  { value: 'bad', label: '没吃好' },
+]
 
 function displayExercise(value) {
   return value && value !== '未记录' ? value : ''
@@ -98,8 +110,11 @@ function getSnackSummary(record) {
 }
 
 function getDietStatus(record) {
-  const status = String(record?.dietStatus || '未记录').trim()
-  return status || '未记录'
+  const status = String(record?.dietStatus || 'unrecorded').trim()
+  if (status === 'normal' || status === '正常') return 'normal'
+  if (status === 'overeaten' || status === '吃多了') return 'overeaten'
+  if (status === 'bad' || status === '没吃好') return 'bad'
+  return 'unrecorded'
 }
 
 function getDietNote(record) {
@@ -136,6 +151,69 @@ function getWeightState(record) {
     label: '维持中',
     detail: '处于目标区间',
     tone: 'green',
+  }
+}
+
+function getSleepHoursValue(record) {
+  const manual = Number(record?.sleepHours)
+  if (Number.isFinite(manual) && manual > 0) return manual
+  return calculateSleepHours(record?.bedTime, record?.wakeTime)
+}
+
+function getWakeTarget(record, wakeSettings) {
+  return wakeSettings?.finalWakeTime || wakeSettings?.targetWakeTime || ''
+}
+
+function getWakeState(record, wakeSettings) {
+  const targetWakeTime = getWakeTarget(record, wakeSettings)
+  const actualWakeTime = record?.wakeTime || ''
+  const status = getWakeStatus(actualWakeTime, targetWakeTime)
+  const delayMinutes = getWakeDelayMinutes(actualWakeTime, targetWakeTime)
+
+  if (!targetWakeTime) {
+    return {
+      label: '未设目标',
+      detail: '先设置目标起床',
+      tone: 'yellow',
+      status: 'unrecorded',
+      targetWakeTime,
+      actualWakeTime,
+      delayMinutes: null,
+    }
+  }
+
+  if (status === 'on_time') {
+    return {
+      label: '达标',
+      detail: '今日已达标',
+      tone: 'green',
+      status,
+      targetWakeTime,
+      actualWakeTime,
+      delayMinutes,
+    }
+  }
+
+  if (status === 'unrecorded') {
+    return {
+      label: '未记录',
+      detail: '未记录起床时间',
+      tone: 'yellow',
+      status,
+      targetWakeTime,
+      actualWakeTime,
+      delayMinutes,
+    }
+  }
+
+  return {
+    label: '未达标',
+    detail: '今日晚起',
+    tone: 'red',
+    status,
+    targetWakeTime,
+    actualWakeTime,
+    delayMinutes,
   }
 }
 
@@ -778,7 +856,7 @@ function WakeSupervisionPanel({
   return (
     <Card
       title="早起监督"
-      eyebrow="Wake"
+      eyebrow="WAKE"
       action={
         <Button
           type="button"
@@ -900,7 +978,6 @@ export default function BodyPanel({
   bodyRecords,
   setBodyRecords,
   bodyScore,
-  wakeSummary,
   wakeSettings,
   setWakeSettings,
   bodyPublicView,
@@ -917,27 +994,7 @@ export default function BodyPanel({
   const relapseTypes = getTriggerSources(record)
   const rescueState = getRescueState(record)
   const targetWakeTime = wakeSettings?.finalWakeTime || wakeSettings?.targetWakeTime || ''
-  const actualWakeTime = record.wakeTime || wakeSummary.actualWakeTime || ''
-  const wakeStatus = getWakeStatus(actualWakeTime, targetWakeTime)
-  const wakeDelayMinutes = getWakeDelayMinutes(actualWakeTime, targetWakeTime)
-  const wakeCardLabel =
-    wakeStatus === 'on_time'
-      ? '达标'
-      : wakeStatus === 'unrecorded'
-        ? '未记录'
-        : '晚起'
-  const wakeCardDetail =
-    wakeStatus === 'on_time'
-      ? '今日已达标'
-      : wakeStatus === 'unrecorded'
-        ? '未记录'
-        : `晚起 ${wakeDelayMinutes || 0} 分钟`
-  const wakeStatusTone =
-    wakeStatus === 'on_time'
-      ? 'green'
-      : wakeStatus === 'unrecorded'
-        ? 'yellow'
-        : 'red'
+  const wakeState = getWakeState(record, wakeSettings)
 
   const disciplineStats = (() => {
     const entries = Object.values(bodyRecords)
@@ -978,6 +1035,7 @@ export default function BodyPanel({
   const disciplineHistoryStats = getRecentDisciplineStats(history)
   const wakeStats = calculateWakeStats(bodyRecords, targetWakeTime, selectedDate)
   const weightState = getWeightState(record)
+  const sleepHoursValue = getSleepHoursValue(record)
 
   function setTargetWakeTime(value) {
     setWakeSettings((current) => ({
@@ -989,18 +1047,32 @@ export default function BodyPanel({
 
   function saveField(field, value) {
     setBodyRecords((current) => {
+      const existingRecord = current[selectedDate] || {}
       const nextRecord = {
         ...defaultBodyRecord,
         date: selectedDate,
-        ...(current[selectedDate] || {}),
+        ...existingRecord,
         [field]: value,
       }
 
+      if (field === 'dietStatus') {
+        nextRecord.dietStatus = value || 'unrecorded'
+        nextRecord.dietStatusTouched = true
+      }
+
+      if (field === 'exerciseText' || field === 'exerciseNote') {
+        nextRecord.exerciseNote = value
+        nextRecord.exerciseText = value
+      }
+
       if (field === 'bedTime' || field === 'wakeTime') {
-        nextRecord.sleepHours = calculateSleepHours(
+        const calculatedSleepHours = calculateSleepHours(
           nextRecord.bedTime,
           nextRecord.wakeTime,
         )
+        if (!String(existingRecord.sleepHours || '').trim()) {
+          nextRecord.sleepHours = calculatedSleepHours
+        }
       }
 
       return { ...current, [selectedDate]: nextRecord }
@@ -1016,13 +1088,23 @@ export default function BodyPanel({
       }
       const nextRecord =
         typeof updater === 'function' ? updater(currentRecord) : updater
+      if (String(nextRecord?.sleepHours || '').trim() === '' && nextRecord?.bedTime && nextRecord?.wakeTime) {
+        nextRecord.sleepHours = calculateSleepHours(
+          nextRecord.bedTime,
+          nextRecord.wakeTime,
+        )
+      }
       return { ...current, [selectedDate]: nextRecord }
     })
   }
 
   function appendExercise(text) {
-    const currentExercise = getExerciseText(record).trim()
-    saveField('exerciseText', currentExercise ? `${currentExercise} + ${text}` : text)
+    const currentExercise = String(record.exerciseNote || record.exerciseText || '').trim()
+    saveField('exerciseNote', currentExercise ? `${currentExercise} + ${text}` : text)
+  }
+
+  function saveDietStatus(value) {
+    saveField('dietStatus', value)
   }
 
   function toggleRelapseType(type) {
@@ -1231,14 +1313,14 @@ export default function BodyPanel({
                   <td className="py-3 pr-3">
                     <Badge
                       tone={
-                        getDietStatus(item) === '正常'
+                        getDietStatus(item) === 'normal'
                           ? 'success'
-                          : getDietStatus(item) === '吃多了' || getDietStatus(item) === '没吃好'
+                          : getDietStatus(item) === 'overeaten' || getDietStatus(item) === 'bad'
                             ? 'warning'
                             : 'neutral'
                       }
                     >
-                      {getDietStatus(item)}
+                      {DIET_STATUS_LABELS[getDietStatus(item)] || '未记录'}
                     </Badge>
                   </td>
                   <td className="max-w-64 py-3 pr-3 text-slate-600">{item.note || '-'}</td>
@@ -1277,11 +1359,11 @@ export default function BodyPanel({
         <ScoreCard label="身体分" value={bodyScore} detail="睡眠 / 起床 / 运动 / 体重维持" tone="green" />
         <ScoreCard
           label="起床"
-          value={wakeCardLabel}
-          detail={wakeCardDetail}
-          tone={wakeStatusTone}
+          value={wakeState.label}
+          detail={wakeState.detail}
+          tone={wakeState.tone}
         />
-        <ScoreCard label="睡眠小时" value={record.sleepHours || 0} detail="7 小时以上加 30 分" />
+        <ScoreCard label="睡眠小时" value={sleepHoursValue || 0} detail="7 小时以上加 30 分" />
         <ScoreCard
           label="运动"
           value={getExerciseText(record) ? '已记' : '未记'}
@@ -1311,7 +1393,7 @@ export default function BodyPanel({
         )}
       </div>
 
-      <div className={bodyPublicView ? 'grid gap-5' : 'grid items-start gap-5 xl:grid-cols-[280px_minmax(720px,1fr)_300px]'}>
+      <div className={bodyPublicView ? 'grid gap-5' : 'grid items-start gap-5 xl:grid-cols-[280px_minmax(780px,1fr)_300px]'}>
         <DisciplinePanel
           bodyPublicView={bodyPublicView}
           disciplineStats={disciplineStats}
@@ -1386,8 +1468,8 @@ export default function BodyPanel({
               <Input
                 as="textarea"
                 label="运动记录"
-                value={getExerciseText(record)}
-                onChange={(event) => saveField('exerciseText', event.target.value)}
+                value={record.exerciseNote || record.exerciseText || ''}
+                onChange={(event) => saveField('exerciseNote', event.target.value)}
                 placeholder="俯卧撑50个 + 步行3公里 + 羽毛球1小时"
                 inputClassName="min-h-24"
               />
@@ -1409,8 +1491,8 @@ export default function BodyPanel({
                 as="select"
                 label="饮食状态"
                 value={getDietStatus(record)}
-                onChange={(event) => saveField('dietStatus', event.target.value)}
-                options={['未记录', '正常', '吃多了', '没吃好']}
+                onChange={(event) => saveDietStatus(event.target.value)}
+                options={DIET_STATUS_OPTIONS}
               />
               <Input
                 label="饮食备注"
@@ -1444,57 +1526,59 @@ export default function BodyPanel({
         )}
       </div>
 
-      <WakeSupervisionPanel
-        bodyRecords={bodyRecords}
-        onSetTargetWakeTime={setTargetWakeTime}
-        record={record}
-        selectedDate={selectedDate}
-        wakeSettings={wakeSettings}
-      />
+      <div className="grid gap-5">
+        <WakeSupervisionPanel
+          bodyRecords={bodyRecords}
+          onSetTargetWakeTime={setTargetWakeTime}
+          record={record}
+          selectedDate={selectedDate}
+          wakeSettings={wakeSettings}
+        />
 
-      {bodyPublicView ? null : (
-        <Card title="身体摘要" eyebrow="Summary">
-        <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-500">最近 7 天身体摘要</p>
-            <div className="mt-3 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-2">
-              <p>平均睡眠：{historyStats.averageSleep} 小时</p>
-              <p>平均起床：{wakeStats.averageWakeTime || '样本不足'}</p>
-              <p>运动天数：{historyStats.exerciseDays}</p>
-              <p>体重记录天数：{historyStats.weightDays}</p>
-              <p>早起达标率：{wakeStats.recordedDays ? `${wakeStats.onTimeDays}/${wakeStats.recordedDays} 天` : '样本不足'}</p>
-              <p>自律达标天数：{disciplineHistoryStats.counts.success}</p>
-            </div>
-          </div>
+        {bodyPublicView ? null : (
+          <Card title="身体摘要" eyebrow="Summary">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-500">最近 7 天身体摘要</p>
+                <div className="mt-3 grid gap-2 text-sm font-medium text-slate-700 sm:grid-cols-2">
+                  <p>平均睡眠：{historyStats.averageSleep} 小时</p>
+                  <p>平均起床：{wakeStats.averageWakeTime || '样本不足'}</p>
+                  <p>运动天数：{historyStats.exerciseDays}</p>
+                  <p>体重记录天数：{historyStats.weightDays}</p>
+                  <p>早起达标率：{wakeStats.recordedDays ? `${wakeStats.onTimeDays}/${wakeStats.recordedDays} 天` : '样本不足'}</p>
+                  <p>自律达标天数：{disciplineHistoryStats.counts.success}</p>
+                </div>
+              </div>
 
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-500">最近 7 天自律摘要</p>
-              <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-slate-700">
-                <p>达标天数：{disciplineHistoryStats.counts.success}</p>
-                <p>失守次数：{disciplineHistoryStats.counts.lost}</p>
-                <p>未记录天数：{disciplineHistoryStats.counts.unrecorded}</p>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {disciplineHistoryStats.dayBlocks.map((item) => (
-                  <div
-                    key={item.date}
-                    className={`rounded-md border p-2 text-xs font-semibold ${
-                      item.status === '达标'
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : item.status === '失守'
-                          ? 'border-rose-200 bg-rose-50 text-rose-700'
-                          : 'border-slate-200 bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    <p>{item.date}</p>
-                    <p className="mt-1">{item.status}</p>
-                  </div>
-                ))}
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-500">最近 7 天自律摘要</p>
+                <div className="mt-3 grid grid-cols-3 gap-3 text-sm text-slate-700">
+                  <p>达标天数：{disciplineHistoryStats.counts.success}</p>
+                  <p>失守次数：{disciplineHistoryStats.counts.lost}</p>
+                  <p>未记录天数：{disciplineHistoryStats.counts.unrecorded}</p>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {disciplineHistoryStats.dayBlocks.map((item) => (
+                    <div
+                      key={item.date}
+                      className={`rounded-md border p-2 text-xs font-semibold ${
+                        item.status === '达标'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                          : item.status === '失守'
+                            ? 'border-rose-200 bg-rose-50 text-rose-700'
+                            : 'border-slate-200 bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      <p>{item.date}</p>
+                      <p className="mt-1">{item.status}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )}
+      </div>
 
       <Card
         title="最近 7 天摘要"

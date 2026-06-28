@@ -804,7 +804,6 @@ function App() {
         bodyRecords={bodyByDate}
         setBodyRecords={setBodyByDate}
         bodyScore={bodyScore}
-        wakeSummary={wakeSummary}
         wakeSettings={wakeSettings}
         setWakeSettings={setWakeSettings}
         bodyPublicView={settings.bodyPublicView}
